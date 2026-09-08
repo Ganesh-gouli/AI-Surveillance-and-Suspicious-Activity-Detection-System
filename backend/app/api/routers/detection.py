@@ -6,6 +6,7 @@ from typing import Dict, Any, List
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from PIL import Image
 from ...ai.inference_pipeline import global_pipeline
+from ...ai.night_vision import global_night_vision
 
 router = APIRouter(prefix="/detection", tags=["Real Neural Detection & Inference"])
 
@@ -44,9 +45,13 @@ async def process_raw_frame(payload: dict):
     """
     Processes real live webcam frames sent from the browser in real-time.
     Runs YOLOv11 person and multi-object detection -> crops person -> fuses with best_human_activity_v2.keras.
+    Supports dynamic Night Vision preprocessing (Tactical NVG Green, Low-Light HDR, CCTV IR, Thermal).
     """
     base64_data = payload.get("image_base64", "")
     camera_id = payload.get("camera_id", "LIVE-WEBCAM")
+    night_vision_mode = payload.get("night_vision_mode", "off")
+    night_vision_gain = float(payload.get("night_vision_gain", 1.0))
+    ir_illuminator = bool(payload.get("ir_illuminator", False))
     
     if base64_data and "," in base64_data:
         base64_data = base64_data.split(",")[1]
@@ -60,5 +65,54 @@ async def process_raw_frame(payload: dict):
         except Exception:
             frame = None
 
-    result = global_pipeline.process_frame(frame, camera_id=camera_id)
+    result = global_pipeline.process_frame(
+        frame,
+        camera_id=camera_id,
+        night_vision_mode=night_vision_mode,
+        night_vision_gain=night_vision_gain,
+        ir_illuminator=ir_illuminator
+    )
     return result
+
+@router.post("/night-vision/preview")
+async def preview_night_vision(payload: dict):
+    """
+    Enhances an input webcam frame with the selected Night Vision mode (Tactical Green, Low-Light HDR,
+    CCTV Infrared, Thermal FLIR) and returns the processed image in high quality along with lux telemetry.
+    """
+    base64_data = payload.get("image_base64", "")
+    mode = payload.get("mode", "tactical_green")
+    gain = float(payload.get("gain", 1.5))
+    ir_illuminator = bool(payload.get("ir_illuminator", False))
+
+    if base64_data and "," in base64_data:
+        base64_data = base64_data.split(",")[1]
+
+    if not base64_data:
+        raise HTTPException(status_code=400, detail="image_base64 is required")
+
+    try:
+        img_bytes = base64.b64decode(base64_data)
+        np_arr = np.frombuffer(img_bytes, np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        if frame is None:
+            raise ValueError("Could not decode image")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Image decoding failed: {str(e)}")
+
+    enhanced_frame, telemetry = global_night_vision.enhance(
+        frame,
+        mode=mode,
+        gain=gain,
+        ir_illuminator=ir_illuminator
+    )
+
+    enhanced_base64 = global_night_vision.encode_frame_to_base64(enhanced_frame, quality=85)
+
+    return {
+        "success": True,
+        "mode": mode,
+        "telemetry": telemetry,
+        "enhanced_image_base64": enhanced_base64
+    }
+

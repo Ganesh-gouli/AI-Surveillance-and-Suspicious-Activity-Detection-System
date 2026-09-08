@@ -10,13 +10,14 @@ from .tracker import MultiPersonTracker
 from .activity_classifier import HumanActivityClassifier
 from .behaviour_engine import BehaviourEngine
 from .alert_engine import AlertEngine
+from .night_vision import global_night_vision, NightVisionEnhancer
 
 class SentinelInferencePipeline:
     """
     High-Performance Real AI Inference Pipeline for SentinelVision AI.
     Executes real-time YOLOv11 multi-object and person detection (optimized imgsz=384 for CPU),
     Google MediaPipe 3D Pose Biomechanical estimation (standing vs. sitting),
-    spatial person-object association, and object-aware threat analysis.
+    spatial person-object association, tactical Night Vision low-light enhancement, and threat analysis.
     """
     def __init__(self):
         self.detector = YOLOv11Detector()
@@ -24,6 +25,7 @@ class SentinelInferencePipeline:
         self.classifier = HumanActivityClassifier()
         self.behaviour_engine = BehaviourEngine()
         self.alert_engine = AlertEngine()
+        self.night_vision = global_night_vision
         self.frame_count = 0
         self.start_time = time.time()
 
@@ -32,10 +34,14 @@ class SentinelInferencePipeline:
         frame: Optional[np.ndarray],
         camera_id: str = "CAM-001",
         camera_location: str = "Surveillance Sector",
-        zones: List[Dict[str, Any]] = None
+        zones: List[Dict[str, Any]] = None,
+        night_vision_mode: str = "off",
+        night_vision_gain: float = 1.0,
+        ir_illuminator: bool = False
     ) -> Dict[str, Any]:
         """
         Executes low-latency real AI inference pipeline on an incoming video / webcam / image frame.
+        Supports dynamic Night Vision preprocessing (CLAHE, gamma correction, sensor gain).
         """
         self.frame_count += 1
         zones = zones or []
@@ -44,12 +50,48 @@ class SentinelInferencePipeline:
         people_results = []
         objects_results = []
         alerts_generated = []
+        night_vision_telemetry = {
+            "active": False,
+            "mode": night_vision_mode,
+            "estimated_lux": 0.0,
+            "is_low_light": False,
+            "sensor_gain": 1.0,
+            "sensor_gain_db": 0.0,
+            "ir_illuminator": ir_illuminator,
+            "clahe_applied": False
+        }
 
         if frame is not None and frame.size > 0:
             h, w = frame.shape[:2]
+
+            # 0. Lighting Analysis & Tactical Night Vision Preprocessing for AI
+            luma_metrics = self.night_vision.analyze_luminance(frame)
+            effective_gain = max(1.0, min(night_vision_gain, 4.0))
+            gain_db = round(20.0 * np.log10(effective_gain), 1) if effective_gain > 1.0 else 0.0
+            is_nv_active = (night_vision_mode != "off") or (effective_gain > 1.0) or ir_illuminator
+
+            night_vision_telemetry = {
+                "active": is_nv_active,
+                "mode": night_vision_mode,
+                "estimated_lux": luma_metrics["estimated_lux"],
+                "is_low_light": luma_metrics["is_low_light"],
+                "mean_luma": luma_metrics["mean_luma"],
+                "sensor_gain": round(effective_gain, 2),
+                "sensor_gain_db": gain_db,
+                "ir_illuminator": ir_illuminator,
+                "clahe_applied": is_nv_active or luma_metrics["is_low_light"]
+            }
+
+            # Enhance frame for AI detection if night vision is on or scene is dark
+            ai_detection_frame = self.night_vision.enhance_for_ai(
+                frame,
+                mode=night_vision_mode,
+                gain=effective_gain,
+                ir_illuminator=ir_illuminator
+            )
             
-            # 1. Real YOLOv11 Unified Multi-Object and Person Detection (optimized 384px)
-            person_detections, scene_objects = self.detector.detect(frame)
+            # 1. Real YOLOv11 Unified Multi-Object and Person Detection (on enhanced frame)
+            person_detections, scene_objects = self.detector.detect(ai_detection_frame)
             
             # Format scene objects for API response
             for obj in scene_objects:
@@ -227,7 +269,8 @@ class SentinelInferencePipeline:
             "people": people_results,
             "objects_count": len(objects_results),
             "objects": objects_results,
-            "active_alerts": alerts_generated
+            "active_alerts": alerts_generated,
+            "night_vision": night_vision_telemetry
         }
 
 # Global singleton pipeline instance

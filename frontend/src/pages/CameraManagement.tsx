@@ -255,6 +255,8 @@ export const CameraManagement: React.FC = () => {
                     <option value="PTZ Long-Range">PTZ Long-Range</option>
                     <option value="Panoramic 360">Panoramic 360</option>
                     <option value="Thermal Hybrid">Thermal Hybrid</option>
+                    <option value="Webcam Night Vision">Webcam Night Vision (Low-Light CLAHE)</option>
+                    <option value="IR Night Surveillance">IR Night Surveillance (850nm)</option>
                   </select>
                 </div>
               </div>
