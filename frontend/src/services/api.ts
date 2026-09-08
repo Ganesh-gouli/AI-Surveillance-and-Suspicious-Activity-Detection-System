@@ -1,7 +1,20 @@
 import { Camera, Incident, RestrictedZone, VideoAnalysisJob, SystemMetrics, AIModelInfo } from '../types';
+const RAW_API_URL = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+export const BACKEND_URL = RAW_API_URL.endsWith('/api') ? RAW_API_URL.slice(0, -4) : RAW_API_URL;
+export const API_BASE = RAW_API_URL ? (RAW_API_URL.endsWith('/api') ? RAW_API_URL : `${RAW_API_URL}/api`) : '/api';
 
-const API_BASE = '/api';
-
+/**
+ * Normalizes relative backend media paths (e.g. /results/... or /static/...)
+ * into fully qualified URLs when deployed, while supporting blob: and external URLs.
+ */
+export const getMediaUrl = (path?: string | null): string => {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:') || path.startsWith('data:')) {
+    return path;
+  }
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return BACKEND_URL ? `${BACKEND_URL}${cleanPath}` : cleanPath;
+};
 export const api = {
   // Cameras
   async getCameras(): Promise<Camera[]> {

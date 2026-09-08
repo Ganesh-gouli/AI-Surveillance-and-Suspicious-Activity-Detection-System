@@ -17,9 +17,23 @@ app = FastAPI(
 )
 
 # CORS configuration
+frontend_url_env = os.getenv("FRONTEND_URL", "").strip()
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+if frontend_url_env:
+    for origin in frontend_url_env.split(","):
+        clean_origin = origin.strip().rstrip("/")
+        if clean_origin and clean_origin not in allowed_origins:
+            allowed_origins.append(clean_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,7 +43,8 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     init_db()
-    print("SentinelVision AI Backend Engine fully operational on port 8000.")
+    port = os.getenv("PORT", "8000")
+    print(f"SentinelVision AI Backend Engine fully operational on port {port}.")
 
 # Mount API Routers
 app.include_router(cameras.router, prefix="/api")

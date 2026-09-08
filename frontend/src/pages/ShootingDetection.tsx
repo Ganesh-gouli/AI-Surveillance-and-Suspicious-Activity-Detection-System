@@ -23,6 +23,7 @@ import {
   BarChart2,
   ListOrdered
 } from 'lucide-react';
+import { API_BASE, getMediaUrl } from '../services/api';
 
 interface ShootingSegment {
   event_type: 'SHOOTING' | 'WEAPON';
@@ -121,7 +122,7 @@ export const ShootingDetection: React.FC = () => {
 
   const fetchMetrics = async () => {
     try {
-      const res = await fetch('/api/shooting/metrics');
+      const res = await fetch(`${API_BASE}/shooting/metrics`);
       if (res.ok) {
         const data = await res.json();
         setMetrics(data);
@@ -133,7 +134,7 @@ export const ShootingDetection: React.FC = () => {
 
   const fetchEvents = async () => {
     try {
-      const res = await fetch('/api/shooting/events');
+      const res = await fetch(`${API_BASE}/shooting/events`);
       if (res.ok) {
         const data = await res.json();
         setEvents(data.events || []);
@@ -169,7 +170,7 @@ export const ShootingDetection: React.FC = () => {
     formData.append('enable_pose', enablePose.toString());
 
     try {
-      const response = await fetch('/api/shooting/analyze-video', {
+      const response = await fetch(`${API_BASE}/shooting/analyze-video`, {
         method: 'POST',
         body: formData,
       });
@@ -185,7 +186,7 @@ export const ShootingDetection: React.FC = () => {
       // Poll analysis progress
       const pollInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch(`/api/shooting/status/${jobId}`);
+          const statusRes = await fetch(`${API_BASE}/shooting/status/${jobId}`);
           if (statusRes.ok) {
             const data = await statusRes.json();
             setProgress(data.progress_percentage || 0);
@@ -608,7 +609,7 @@ export const ShootingDetection: React.FC = () => {
                   <video
                     ref={videoPlayerRef}
                     key={analysisResult.video_url}
-                    src={analysisResult.video_url}
+                    src={getMediaUrl(analysisResult.video_url)}
                     controls
                     autoPlay
                     playsInline
@@ -746,7 +747,7 @@ export const ShootingDetection: React.FC = () => {
 
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-center justify-center">
               <img
-                src={metrics?.confusion_matrix_path || '/results/confusion_matrix_shooting.png'}
+                src={getMediaUrl(metrics?.confusion_matrix_path || '/results/confusion_matrix_shooting.png')}
                 alt="Confusion Matrix"
                 className="max-h-[500px] w-auto rounded-lg shadow-lg object-contain border border-slate-800"
                 onError={(e) => {

@@ -17,6 +17,7 @@ import {
   Layers,
   FileVideo
 } from 'lucide-react';
+import { API_BASE, getMediaUrl } from '../services/api';
 
 interface AnalysisResult {
   job_id: string;
@@ -95,7 +96,7 @@ export const VideoAnalysis: React.FC = () => {
       formData.append('frame_ratio', String(frameRatio));
       formData.append('sample_rate', String(sampleRate));
 
-      const res = await fetch('/api/fire/analyze-video', {
+      const res = await fetch(`${API_BASE}/fire/analyze-video`, {
         method: 'POST',
         body: formData
       });
@@ -111,7 +112,7 @@ export const VideoAnalysis: React.FC = () => {
       // Poll status every 800ms
       const pollInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch(`/api/fire/status/${jobId}`);
+          const statusRes = await fetch(`${API_BASE}/fire/status/${jobId}`);
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             setProgress(statusData.progress_percentage || 0);
@@ -143,7 +144,7 @@ export const VideoAnalysis: React.FC = () => {
   const loadSampleVideo = async (filename: string, isFire: boolean) => {
     try {
       // Fetch the sample from dataset endpoint or test file
-      const url = isFire ? `/results/sample_${filename}` : `/dataset/no_fire/${filename}`;
+      const url = getMediaUrl(isFire ? `/results/sample_${filename}` : `/dataset/no_fire/${filename}`);
       // In case local file needs fetching, fallback to creating file from Fire folder or show alert
       const response = await fetch(url);
       if (response.ok) {
@@ -426,7 +427,7 @@ export const VideoAnalysis: React.FC = () => {
                 <video
                   ref={videoPlayerRef}
                   key={analysisResult.processed_video_url}
-                  src={analysisResult.processed_video_url}
+                  src={getMediaUrl(analysisResult.processed_video_url)}
                   controls
                   autoPlay
                   className="w-full h-full object-contain"

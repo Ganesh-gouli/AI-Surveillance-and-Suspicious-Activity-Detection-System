@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { CameraCanvasOverlay } from '../components/video/CameraCanvasOverlay';
 import { TrackedPerson, DetectedObject } from '../types';
+import { API_BASE } from '../services/api';
 
 export const ImageAnalysis: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -36,7 +37,7 @@ export const ImageAnalysis: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
 
-        const res = await fetch('/api/detection/image', {
+        const res = await fetch(`${API_BASE}/detection/image`, {
           method: 'POST',
           body: formData
         });

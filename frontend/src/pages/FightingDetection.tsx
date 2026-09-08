@@ -21,6 +21,7 @@ import {
   Eye,
   Users
 } from 'lucide-react';
+import { API_BASE, getMediaUrl } from '../services/api';
 
 interface FightingSegment {
   start_sec: number;
@@ -96,7 +97,7 @@ export const FightingDetection: React.FC = () => {
 
   const fetchEvents = async () => {
     try {
-      const res = await fetch('/api/fighting/events');
+      const res = await fetch(`${API_BASE}/fighting/events`);
       if (res.ok) {
         const data = await res.json();
         setEvents(data.events || []);
@@ -131,7 +132,7 @@ export const FightingDetection: React.FC = () => {
     formData.append('sample_rate', sampleRate.toString());
 
     try {
-      const response = await fetch('/api/fighting/analyze-video', {
+      const response = await fetch(`${API_BASE}/fighting/analyze-video`, {
         method: 'POST',
         body: formData,
       });
@@ -147,7 +148,7 @@ export const FightingDetection: React.FC = () => {
       // Poll analysis progress
       const pollInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch(`/api/fighting/status/${jobId}`);
+          const statusRes = await fetch(`${API_BASE}/fighting/status/${jobId}`);
           if (!statusRes.ok) return;
 
           const statusData = await statusRes.json();
@@ -472,7 +473,7 @@ export const FightingDetection: React.FC = () => {
                         Raw Video
                       </button>
                       <a
-                        href={analysisResult.video_url || '/api/fighting/video/fighting_detected_video.mp4'}
+                        href={getMediaUrl(analysisResult.video_url || '/api/fighting/video/fighting_detected_video.mp4')}
                         target="_blank"
                         rel="noreferrer"
                         className="text-xs px-2.5 py-1 rounded font-medium text-slate-400 hover:text-white flex items-center gap-1 hover:bg-slate-900 transition-colors"
@@ -494,7 +495,7 @@ export const FightingDetection: React.FC = () => {
                       className="w-full h-full object-contain"
                       src={
                         activePlayerTab === 'PROCESSED'
-                          ? `${analysisResult.video_url || '/api/fighting/video/fighting_detected_video.mp4'}?v=${analysisResult.job_id || Date.now()}`
+                          ? `${getMediaUrl(analysisResult.video_url || '/api/fighting/video/fighting_detected_video.mp4')}?v=${analysisResult.job_id || Date.now()}`
                           : (originalVideoUrl || '')
                       }
                     />

@@ -149,3 +149,75 @@ SentinelVision AI/
 - **SOC Operator**: Live monitoring, PTZ control, incident review & resolution.
 - **Security Administrator**: Camera provisioning, restricted zone vector drawing, detection sensitivity tuning.
 - **RTSP Protection**: Sensitive camera credentials masked and secured on the backend.
+
+---
+
+## 🚀 Production Cloud Deployment (Vercel + Render)
+
+The platform is designed to be deployed as a decoupled, full-stack cloud architecture:
+- **Frontend SPA**: Hosted on **Vercel** (Global Edge CDN, automatic HTTPS)
+- **Backend AI Engine**: Hosted on **Render** (FastAPI, WebSockets, Python 3.11)
+
+```
+                       GitHub Repository
+                               |
+            +------------------+------------------+
+            |                                     |
+            v                                     v
+     Vercel (Frontend)                    Render (Backend)
+    • Root: frontend/                    • Root: backend/
+    • Framework: Vite                    • Runtime: Python 3.11
+    • React 18 + TS SPA                  • FastAPI + Uvicorn ($PORT)
+    • Output: dist/                      • YOLOv11 + MediaPipe + WebSockets
+            |                                     |
+            +============ HTTPS / WSS ============>
+```
+
+---
+
+### Step 1: Deploy Backend to Render
+
+1. Sign in to [Render](https://render.com) and click **New +** -> **Web Service**.
+2. Connect your GitHub repository: `https://github.com/Ganesh-gouli/AI-Surveillance-and-Suspicious-Activity-Detection-System`.
+3. Configure the service settings:
+   - **Name**: `sentinelvision-ai-backend` (or your preferred name)
+   - **Region**: Choose the region closest to you (e.g. Frankfurt, Oregon, Singapore)
+   - **Root Directory**: `backend`
+   - **Runtime**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. In the **Environment Variables** section, add:
+   - `PYTHON_VERSION`: `3.11.9`
+   - `FRONTEND_URL`: `https://YOUR-FRONTEND.vercel.app` *(update once your Vercel URL is generated)*
+5. Click **Create Web Service**. Wait for the build and deployment to complete.
+6. Copy your public Render service URL (e.g., `https://sentinelvision-ai-backend.onrender.com`).
+
+---
+
+### Step 2: Deploy Frontend to Vercel
+
+1. Sign in to [Vercel](https://vercel.com) and click **Add New...** -> **Project**.
+2. Import your GitHub repository: `https://github.com/Ganesh-gouli/AI-Surveillance-and-Suspicious-Activity-Detection-System`.
+3. Configure project settings:
+   - **Framework Preset**: `Vite`
+   - **Root Directory**: Click **Edit** and choose `frontend`
+   - **Build Command**: `npm run build` *(default)*
+   - **Output Directory**: `dist` *(default)*
+4. In the **Environment Variables** section, add:
+   - `VITE_API_URL`: `https://YOUR-BACKEND.onrender.com` *(your Render backend URL from Step 1)*
+   - `VITE_WS_URL`: `wss://YOUR-BACKEND.onrender.com` *(note the `wss://` protocol)*
+5. Click **Deploy**. Vercel will build and assign you a production domain (e.g., `https://sentinelvision-ai.vercel.app`).
+6. *Final Step*: Return to Render, open **Environment**, and set `FRONTEND_URL` to your Vercel URL (`https://sentinelvision-ai.vercel.app`), then click **Save Changes**.
+
+---
+
+### ⚠️ Cloud Deployment Considerations & Limitations
+
+| Feature | Local Environment | Render Cloud Environment | Production Recommendation |
+| :--- | :--- | :--- | :--- |
+| **Server Memory (RAM)** | Full Host RAM (8GB - 32GB) | **512 MB** (Render Free Tier) | Upgrading to **Render Starter (1GB RAM)** or **Standard (2GB RAM)** is recommended for simultaneous deep learning inference (PyTorch + Keras + YOLO). |
+| **Model Weights** | Local `.keras` / `.pt` files | Graceful fallbacks (Auto YOLO download, MediaPipe Pose biomechanics) | For custom fine-tuned weights, store models on **Hugging Face Hub** or **AWS S3** and download during build. |
+| **Storage Persistence** | Local Disk (`results/`, `uploads/`) | Ephemeral (cleared on restart) | Connect a **Render Disk** or use Cloud Object Storage (AWS S3, Supabase Storage) for permanent incident archiving. |
+| **WebSockets** | `ws://localhost:8000` | Native `wss://` on port 443 | Fully supported. On Free tier, service sleeps after 15 min idle (cold boot takes 30-50s). |
+| **Webcam Streaming** | Direct browser `MediaDevices` | Direct browser `MediaDevices` | **100% Functional** — Frames are encoded client-side in the browser and transmitted over HTTPS/WSS. |
+| **Private CCTV/RTSP** | Local Subnet (e.g. `192.168.x.x`) | Cannot reach local LAN without tunnel | For remote CCTV cameras, use public RTSP streams, HLS feeds, or a secure tunnel (e.g. Cloudflare Tunnel / Tailscale). |

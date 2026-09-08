@@ -15,9 +15,22 @@ export class LiveCameraWebSocket {
 
   private connect() {
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
-      this.ws = new WebSocket(`${protocol}//${host}/ws/live/${this.camera_id}`);
+      const configuredWs = (import.meta.env.VITE_WS_URL || '').trim().replace(/\/+$/, '');
+      let endpoint: string;
+
+      if (configuredWs) {
+        // Automatically ensure websocket protocol
+        const wsBase = configuredWs
+          .replace(/^http:\/\//i, 'ws://')
+          .replace(/^https:\/\//i, 'wss://');
+        endpoint = `${wsBase}/ws/live/${this.camera_id}`;
+      } else {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        endpoint = `${protocol}//${host}/ws/live/${this.camera_id}`;
+      }
+
+      this.ws = new WebSocket(endpoint);
 
       this.ws.onopen = () => {
         if (this.reconnectTimer) {

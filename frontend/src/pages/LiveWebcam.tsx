@@ -22,6 +22,7 @@ import {
 import { CameraCanvasOverlay } from '../components/video/CameraCanvasOverlay';
 import { TrackedPerson, DetectedObject } from '../types';
 import { audioService } from '../services/audioAlerts';
+import { API_BASE } from '../services/api';
 
 export const LiveWebcam: React.FC = () => {
   const [isStreaming, setIsStreaming] = useState(false);
@@ -141,7 +142,7 @@ export const LiveWebcam: React.FC = () => {
           const base64Data = canvas.toDataURL('image/jpeg', 0.55);
 
           // Send real frame to FastAPI backend (YOLOv11 + MediaPipe Pose Biomechanics)
-          const response = await fetch('/api/detection/frame', {
+          const response = await fetch(`${API_BASE}/detection/frame`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -199,7 +200,7 @@ export const LiveWebcam: React.FC = () => {
             // Real-Time PyTorch Fire Detection Check (Section 11)
             if (fireMonitorActive) {
               try {
-                const fireRes = await fetch('/api/fire/detect-frame', {
+                const fireRes = await fetch(`${API_BASE}/fire/detect-frame`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
