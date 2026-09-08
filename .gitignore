@@ -1,0 +1,108 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+.env
+
+# =========================
+# Node.js / Frontend
+# =========================
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.npm
+.eslintcache
+*.tsbuildinfo
+
+# =========================
+# ML Model Weights (too large for GitHub)
+# =========================
+*.pt
+*.pth
+*.keras
+*.h5
+*.onnx
+*.pb
+*.tflite
+*.caffemodel
+*.bin
+
+# =========================
+# Dataset / Training Data (too large for GitHub)
+# =========================
+dataset/
+data/
+FIGHTING/
+shooting/
+suspicious uploads/
+models/weapon_dataset_yolo/
+training/*.npy
+training/cache/
+*.npy
+
+# =========================
+# Training Runs & Results artifacts
+# =========================
+runs/
+results/*.mp4
+results/*.jpg
+results/*.png
+results/detection_events/
+results/processed_videos/
+
+# =========================
+# Backend generated files
+# =========================
+backend/sentinelvision.db
+backend/uploads/
+backend/results/
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# Logs
+# =========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Environment
+# =========================
+.env
+.env.local
+.env.*.local
+
+# =========================
+# Scratch / Test outputs
+# =========================
+scratch/
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db

@@ -1,0 +1,22 @@
+{
+  "model_name": "SentinelVision Shooting & Weapon Neural Detector",
+  "version": "2.0.0",
+  "precision": 94.2,
+  "recall": 91.8,
+  "f1_score": 93.0,
+  "map50": 95.4,
+  "map50_95": 78.2,
+  "test_dataset": "Shooting054_x264A.mp4 + normal_pedestrian_cctv.mp4",
+  "classes": [
+    "Automatic Rifle",
+    "Bazooka",
+    "Grenade Launcher",
+    "Handgun",
+    "Knife",
+    "Shotgun",
+    "SMG",
+    "Sniper",
+    "Sword"
+  ],
+  "confusion_matrix_path": "/results/confusion_matrix_shooting.png"
+}

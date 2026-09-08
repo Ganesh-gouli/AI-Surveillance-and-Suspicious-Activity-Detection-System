@@ -1,0 +1,21 @@
+{
+  "name": "sentinelvision-ai",
+  "version": "2.4.0",
+  "description": "Real-Time Human Behaviour & Suspicious Activity Intelligence Platform",
+  "scripts": {
+    "dev": "python run.py",
+    "start": "python run.py",
+    "backend": "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+    "frontend": "cd frontend && npm run dev"
+  },
+  "keywords": [
+    "ai",
+    "computer-vision",
+    "surveillance",
+    "human-activity-recognition",
+    "soc",
+    "vms"
+  ],
+  "author": "SentinelVision AI",
+  "license": "MIT"
+}

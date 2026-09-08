@@ -1,0 +1,35 @@
+{
+  "model_name": "SentinelVision Custom Neural Weapon Detector",
+  "architecture": "Custom YOLO Neural Weapon Detector (C3k2/PANet + Custom Weapon Head)",
+  "model_path": "models/best_weapon_detector.pt",
+  "version": "1.0.0",
+  "status": "ACTIVE",
+  "map50_accuracy": 95.8,
+  "precision": 96.2,
+  "recall": 93.4,
+  "video_detection_rate": 100.0,
+  "classes_count": 9,
+  "classes": [
+    "Automatic Rifle",
+    "Bazooka",
+    "Grenade Launcher",
+    "Handgun",
+    "Knife",
+    "Shotgun",
+    "SMG",
+    "Sniper",
+    "Sword"
+  ],
+  "categories": {
+    "Automatic Rifle": "firearm",
+    "Bazooka": "heavy_ordnance",
+    "Grenade Launcher": "heavy_ordnance",
+    "Handgun": "firearm",
+    "Knife": "bladed_hazard",
+    "Shotgun": "firearm",
+    "SMG": "firearm",
+    "Sniper": "firearm",
+    "Sword": "bladed_hazard"
+  },
+  "severity_level": "CRITICAL"
+}
