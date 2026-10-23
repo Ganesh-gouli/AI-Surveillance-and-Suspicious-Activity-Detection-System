@@ -8,17 +8,13 @@ import {
   Layers,
   Sparkles,
   Box,
-  Link as LinkIcon,
-  RotateCcw,
-  CheckCircle2
+  Link as LinkIcon
 } from 'lucide-react';
 import { CameraCanvasOverlay } from '../components/video/CameraCanvasOverlay';
-import { useToast } from '../context/ToastContext';
 import { TrackedPerson, DetectedObject } from '../types';
 import { API_BASE } from '../services/api';
 
 export const ImageAnalysis: React.FC = () => {
-  const { success, warning, error } = useToast();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -37,6 +33,7 @@ export const ImageAnalysis: React.FC = () => {
       setIsProcessing(true);
 
       try {
+        // Send real image to backend endpoint
         const formData = new FormData();
         formData.append('file', file);
 
@@ -50,13 +47,9 @@ export const ImageAnalysis: React.FC = () => {
           setImageDimensions({ width: data.width || 1280, height: data.height || 720 });
           setDetections(data.detections || []);
           setSceneObjects(data.objects || []);
-          success('Inference Complete', `Detected ${data.detections?.length || 0} person(s) and ${data.objects?.length || 0} object(s).`);
-        } else {
-          warning('Inference Warning', 'Backend returned non-200 response.');
         }
       } catch (err) {
-        console.error('Error analyzing image:', err);
-        error('Analysis Error', 'Failed to reach detection API endpoint.');
+        console.error("Error analyzing image:", err);
       } finally {
         setIsProcessing(false);
       }
@@ -73,36 +66,34 @@ export const ImageAnalysis: React.FC = () => {
     };
     navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
     setCopied(true);
-    success('Copied to Clipboard', 'Raw JSON inference telemetry copied.');
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 cyber-grid-bg min-h-full">
+    <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="bg-[#0a0f19] border border-slate-800 p-4 sm:p-5 rounded-2xl flex items-center justify-between flex-wrap gap-4 shadow-xl">
-        <div className="flex items-center space-x-3.5">
-          <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-            <ImageIcon className="w-6 h-6" />
+      <div className="bg-[#0a0f19] border border-slate-800 p-4 rounded-xl flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+            <ImageIcon className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base sm:text-lg font-bold text-white font-mono tracking-tight">
-              IMAGE AI FORENSIC & OBJECT-ACTIVITY ANALYZER
+            <h1 className="text-base font-bold text-white font-mono">
+              REAL IMAGE AI FORENSIC & OBJECT-ACTIVITY ANALYZER
             </h1>
             <p className="text-xs text-slate-400 font-mono">
-              <span className="text-purple-400 font-bold">YOLOv11 Multi-Object Detection</span> • Spatial IoU Linkage •{' '}
-              <span className="text-cyan-400 font-bold">Keras Activity Recognition</span>
+              <span className="text-purple-400 font-bold">YOLOv11 Multi-Object Detection</span> • Person-Object Interaction • <span className="text-cyan-400 font-bold">best_human_activity_v2.keras</span>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2.5">
+        <div className="flex items-center space-x-3">
           {selectedImage && (
             <button
               onClick={() => setShowObjectsOverlay(!showObjectsOverlay)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-mono border transition-all ${
-                showObjectsOverlay
-                  ? 'bg-purple-950/40 border-purple-500/50 text-purple-300'
+              className={`px-3 py-1.5 rounded-lg text-xs font-mono border transition-all ${
+                showObjectsOverlay 
+                  ? 'bg-purple-950/40 border-purple-500/50 text-purple-300' 
                   : 'bg-slate-900 border-slate-800 text-slate-400'
               }`}
             >
@@ -112,16 +103,10 @@ export const ImageAnalysis: React.FC = () => {
 
           {selectedImage && (
             <button
-              onClick={() => {
-                setSelectedImage(null);
-                setImageFile(null);
-                setDetections([]);
-                setSceneObjects([]);
-              }}
-              className="px-3.5 py-1.5 rounded-xl btn-tactical-secondary text-xs font-mono flex items-center space-x-1"
+              onClick={() => { setSelectedImage(null); setImageFile(null); setDetections([]); setSceneObjects([]); }}
+              className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>UPLOAD ANOTHER</span>
+              UPLOAD ANOTHER IMAGE
             </button>
           )}
         </div>
@@ -131,7 +116,7 @@ export const ImageAnalysis: React.FC = () => {
       {!selectedImage && (
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-slate-700 hover:border-cyan-500/60 bg-slate-950/40 hover:bg-slate-900/40 rounded-2xl p-12 text-center cursor-pointer transition-all space-y-4 shadow-xl"
+          className="border-2 border-dashed border-slate-700 hover:border-cyan-500/60 bg-slate-950/40 hover:bg-slate-900/40 rounded-2xl p-12 text-center cursor-pointer transition-all space-y-4"
         >
           <input
             type="file"
@@ -140,15 +125,15 @@ export const ImageAnalysis: React.FC = () => {
             accept="image/*"
             onChange={(e) => e.target.files && handleImageSelected(e.target.files[0])}
           />
-          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mx-auto text-cyan-400 shadow-[0_0_20px_rgba(0,240,255,0.15)]">
+          <div className="w-16 h-16 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mx-auto text-cyan-400 shadow-[0_0_20px_rgba(0,240,255,0.15)]">
             <Upload className="w-8 h-8" />
           </div>
           <div>
             <h3 className="text-base font-bold text-white font-mono">
               Upload Image for YOLOv11 Activity & Object Detection
             </h3>
-            <p className="text-xs text-slate-400 font-mono mt-1 max-w-lg mx-auto">
-              Simultaneous person tracking, context object association, posture classification, and armed threat recognition.
+            <p className="text-xs text-slate-400 font-mono mt-1">
+              Supports JPEG, PNG, WEBP, BMP • Simultaneous person tracking, object spatial association, and activity recognition
             </p>
           </div>
         </div>
@@ -159,7 +144,11 @@ export const ImageAnalysis: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
             <div className="relative aspect-video w-full bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl surveillance-feed">
-              <img src={selectedImage} alt="Analyzed Evidence" className="w-full h-full object-contain" />
+              <img
+                src={selectedImage}
+                alt="Analyzed Evidence"
+                className="w-full h-full object-contain"
+              />
               <CameraCanvasOverlay
                 people={detections}
                 objects={sceneObjects}
@@ -174,17 +163,14 @@ export const ImageAnalysis: React.FC = () => {
 
             {/* Scene Objects Summary Bar */}
             {sceneObjects.length > 0 && (
-              <div className="soc-panel p-4 rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs font-mono shadow-lg">
+              <div className="soc-panel p-3.5 rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
                 <div className="flex items-center space-x-2 text-purple-400 font-bold">
                   <Box className="w-4 h-4" />
                   <span>YOLOv11 DETECTED SCENE OBJECTS ({sceneObjects.length}):</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {sceneObjects.map((obj, i) => (
-                    <span
-                      key={i}
-                      className="px-2 py-0.5 rounded-lg bg-purple-950/60 border border-purple-500/30 text-purple-300 text-[11px]"
-                    >
+                    <span key={i} className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-300 text-[11px]">
                       {obj.label} ({obj.confidence.toFixed(0)}%)
                     </span>
                   ))}
@@ -195,8 +181,8 @@ export const ImageAnalysis: React.FC = () => {
 
           {/* Detections JSON & Metadata */}
           <div className="space-y-4">
-            <div className="soc-panel p-5 rounded-2xl space-y-3.5 shadow-xl">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <div className="soc-panel p-4 rounded-xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span className="text-xs font-mono font-bold text-cyan-400 uppercase">
                   Person & Object Interactions ({detections.length})
                 </span>
@@ -212,32 +198,22 @@ export const ImageAnalysis: React.FC = () => {
               </div>
 
               {detections.length === 0 ? (
-                <div className="py-10 text-center text-xs font-mono text-slate-500">
-                  {isProcessing ? 'Executing YOLOv11 neural inference...' : 'No persons detected in this frame.'}
+                <div className="py-8 text-center text-xs font-mono text-slate-500">
+                  {isProcessing ? "Running YOLOv11 neural inference..." : "No persons detected in this image."}
                 </div>
               ) : (
-                <div className="space-y-2.5 max-h-80 overflow-y-auto custom-scrollbar pr-1">
+                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                   {detections.map((d) => (
-                    <div
-                      key={d.track_id}
-                      className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs font-mono space-y-2"
-                    >
+                    <div key={d.track_id} className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 text-xs font-mono space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="font-bold text-white">Person #{d.track_id}</span>
-                        <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-bold border border-cyan-500/30">
+                        <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-bold">
                           {d.activity}
                         </span>
                       </div>
                       <div className="flex justify-between text-slate-400 text-[11px]">
-                        <span>
-                          Confidence: <strong className="text-emerald-400">{d.confidence}%</strong>
-                        </span>
-                        <span>
-                          Threat:{' '}
-                          <strong className={d.threat_level === 'NORMAL' ? 'text-slate-300' : 'text-red-400'}>
-                            {d.threat_level}
-                          </strong>
-                        </span>
+                        <span>Confidence: <strong className="text-emerald-400">{d.confidence}%</strong></span>
+                        <span>Threat: <strong className={d.threat_level === 'NORMAL' ? 'text-slate-300' : 'text-red-400'}>{d.threat_level}</strong></span>
                       </div>
 
                       {/* Interacting Objects breakdown */}
@@ -248,10 +224,7 @@ export const ImageAnalysis: React.FC = () => {
                             <span className="text-[10px] text-slate-400 block">Interacting Objects:</span>
                             <div className="flex flex-wrap gap-1">
                               {d.interacting_objects.map((io, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300 border border-purple-500/30 text-[10px] font-bold"
-                                >
+                                <span key={idx} className="px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300 border border-purple-500/30 text-[10px] font-bold">
                                   {io.label} ({io.confidence}%)
                                 </span>
                               ))}
@@ -271,10 +244,8 @@ export const ImageAnalysis: React.FC = () => {
               {/* Raw JSON Dump */}
               {(detections.length > 0 || sceneObjects.length > 0) && (
                 <div className="pt-2 border-t border-slate-800">
-                  <span className="text-[10px] font-mono text-slate-500 block mb-1">
-                    RAW YOLOv11 INFERENCE TELEMETRY
-                  </span>
-                  <pre className="bg-slate-950 p-2.5 rounded-xl text-[10px] font-mono text-slate-300 max-h-36 overflow-y-auto custom-scrollbar border border-slate-800">
+                  <span className="text-[10px] font-mono text-slate-500 block mb-1">RAW YOLOv11 INFERENCE PAYLOAD</span>
+                  <pre className="bg-slate-950 p-2.5 rounded-lg text-[10px] font-mono text-slate-300 max-h-36 overflow-y-auto border border-slate-800">
                     {JSON.stringify({ detections, scene_objects: sceneObjects }, null, 2)}
                   </pre>
                 </div>

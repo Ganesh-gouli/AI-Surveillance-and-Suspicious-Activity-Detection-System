@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .database.session import init_db
-from .api.routers import cameras, videos, detection, incidents, zones, analytics, system, models, fire, fighting, shooting
+from .api.routers import cameras, videos, detection, incidents, zones, analytics, system, models, fire, fighting, shooting, atm
 from .websocket.connection_manager import manager
 from .ai.inference_pipeline import global_pipeline
 
@@ -49,6 +49,7 @@ def on_startup():
 # Mount API Routers
 app.include_router(cameras.router, prefix="/api")
 app.include_router(videos.router, prefix="/api")
+app.include_router(atm.router, prefix="/api")
 app.include_router(fire.router, prefix="/api")
 app.include_router(fighting.router, prefix="/api")
 app.include_router(shooting.router, prefix="/api")

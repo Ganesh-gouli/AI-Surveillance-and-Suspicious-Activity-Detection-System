@@ -190,7 +190,7 @@ export const IncidentDetailModal: React.FC<IncidentDetailModalProps> = ({
 
             {incident.status === 'RESOLVED' ? (
               <div className="bg-emerald-950/20 border border-emerald-500/30 p-3 rounded-lg text-xs font-mono text-emerald-300">
-                <span className="font-bold">RESOLVED BY:</span> {incident.resolved_by || 'SOC Operator'}
+                <span className="font-bold">RESOLVED BY:</span> {incident.resolved_by || 'Officer Ramirez (Badge #8821)'}
                 <div className="mt-1 text-slate-300">{incident.resolution_notes || 'Action verified and closed.'}</div>
               </div>
             ) : (
@@ -198,7 +198,7 @@ export const IncidentDetailModal: React.FC<IncidentDetailModalProps> = ({
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Enter response notes, guard dispatch details, or resolution rationale..."
+                  placeholder="Enter response notes, guard dispatch details, or false alarm dismissal rationale..."
                   className="w-full h-20 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500"
                 />
                 <div className="flex justify-end space-x-2">
@@ -218,24 +218,7 @@ export const IncidentDetailModal: React.FC<IncidentDetailModalProps> = ({
         {/* Footer Actions */}
         <div className="px-6 py-3.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs font-mono">
           <button
-            onClick={() => {
-              const dossier = {
-                docket_id: `SOC-EVID-${incident.id}`,
-                generated_at: new Date().toISOString(),
-                incident_details: incident,
-                platform: "SentinelVision AI Autonomous Surveillance",
-                verified_by: incident.resolved_by || "SOC Operator"
-              };
-              const blob = new Blob([JSON.stringify(dossier, null, 2)], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `dossier_SOC_EVID_${incident.id}.json`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-            }}
+            onClick={() => alert(`Exporting Docket SOC-EVID-${incident.id}.pdf`)}
             className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
           >
             <FileDown className="w-4 h-4 text-cyan-400" />

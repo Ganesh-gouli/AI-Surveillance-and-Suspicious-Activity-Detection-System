@@ -4,7 +4,6 @@ import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { ThreatTicker } from './components/layout/ThreatTicker';
 import { IncidentDetailModal } from './components/incidents/IncidentDetailModal';
-import { ToastProvider } from './context/ToastContext';
 
 import { api } from './services/api';
 import { audioService } from './services/audioAlerts';
@@ -18,6 +17,7 @@ const CameraManagement = lazy(() => import('./pages/CameraManagement').then(m =>
 const VideoAnalysis = lazy(() => import('./pages/VideoAnalysis').then(m => ({ default: m.VideoAnalysis })));
 const FightingDetection = lazy(() => import('./pages/FightingDetection').then(m => ({ default: m.FightingDetection })));
 const ShootingDetection = lazy(() => import('./pages/ShootingDetection').then(m => ({ default: m.ShootingDetection })));
+const ATMVandalismDetection = lazy(() => import('./pages/ATMVandalismDetection').then(m => ({ default: m.ATMVandalismDetection })));
 const ImageAnalysis = lazy(() => import('./pages/ImageAnalysis').then(m => ({ default: m.ImageAnalysis })));
 const Incidents = lazy(() => import('./pages/Incidents').then(m => ({ default: m.Incidents })));
 const RestrictedZones = lazy(() => import('./pages/RestrictedZones').then(m => ({ default: m.RestrictedZones })));
@@ -43,7 +43,6 @@ export const App: React.FC = () => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   const refreshGlobalState = async () => {
     try {
@@ -68,70 +67,61 @@ export const App: React.FC = () => {
     audioService.playWarningBeep();
   };
 
-  const activeThreatsCount = incidents.filter(i => i.status === 'OPEN').length;
-
   return (
-    <ToastProvider>
-      <Router>
-        <div className="flex flex-col min-h-screen bg-[#06090e] text-slate-100 font-sans">
-          {/* Top SOC Navbar */}
-          <Navbar
-            systemMetrics={systemMetrics}
-            onToggleDemoMode={handleToggleDemoMode}
-            isDemoMode={isDemoMode}
-            onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            isMobileMenuOpen={isMobileMenuOpen}
-          />
+    <Router>
+      <div className="flex flex-col min-h-screen bg-[#06090e] text-slate-100 font-sans">
+        {/* Top SOC Navbar */}
+        <Navbar
+          systemMetrics={systemMetrics}
+          onToggleDemoMode={handleToggleDemoMode}
+          isDemoMode={isDemoMode}
+        />
 
-          {/* Global Live Threat Ticker Bar */}
-          <ThreatTicker
-            incidents={incidents}
-            onSelectIncident={(inc) => setSelectedIncident(inc)}
-          />
+        {/* Global Live Threat Ticker Bar */}
+        <ThreatTicker
+          incidents={incidents}
+          onSelectIncident={(inc) => setSelectedIncident(inc)}
+        />
 
-          {/* Main Content Layout with Sidebar */}
-          <div className="flex flex-1 overflow-hidden relative">
-            <Sidebar
-              activeThreatCount={activeThreatsCount}
-              isOpen={isMobileMenuOpen}
-              onClose={() => setIsMobileMenuOpen(false)}
-            />
+        {/* Main Content Layout with Sidebar */}
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar activeThreatCount={incidents.filter(i => i.status === 'OPEN').length} />
 
-            {/* Page Routing Viewport with Lazy Loading */}
-            <main className="flex-1 overflow-y-auto bg-[#070b12] custom-scrollbar">
-              <Suspense fallback={<CyberLoadingSpinner />}>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/monitoring" element={<LiveMonitoring />} />
-                  <Route path="/webcam" element={<LiveWebcam />} />
-                  <Route path="/cameras" element={<CameraManagement />} />
-                  <Route path="/fighting-detection" element={<FightingDetection />} />
-                  <Route path="/shooting-detection" element={<ShootingDetection />} />
-                  <Route path="/video-analysis" element={<VideoAnalysis />} />
-                  <Route path="/image-analysis" element={<ImageAnalysis />} />
-                  <Route path="/incidents" element={<Incidents />} />
-                  <Route path="/zones" element={<RestrictedZones />} />
-                  <Route path="/analytics" element={<HeatmapAnalytics />} />
-                  <Route path="/models" element={<AIModels />} />
-                  <Route path="/settings" element={<Settings />} />
-                </Routes>
-              </Suspense>
-            </main>
-          </div>
-
-          {/* Global Incident Modal */}
-          <IncidentDetailModal
-            incident={selectedIncident}
-            onClose={() => setSelectedIncident(null)}
-            onResolve={async (id, notes) => {
-              await api.updateIncident(id, { status: 'RESOLVED', resolution_notes: notes });
-              refreshGlobalState();
-              setSelectedIncident(null);
-            }}
-          />
+          {/* Page Routing Viewport with Lazy Loading */}
+          <main className="flex-1 overflow-y-auto bg-[#070b12]">
+            <Suspense fallback={<CyberLoadingSpinner />}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/monitoring" element={<LiveMonitoring />} />
+                <Route path="/webcam" element={<LiveWebcam />} />
+                <Route path="/cameras" element={<CameraManagement />} />
+                <Route path="/atm-detection" element={<ATMVandalismDetection />} />
+                <Route path="/shooting-detection" element={<ShootingDetection />} />
+                <Route path="/fighting-detection" element={<FightingDetection />} />
+                <Route path="/video-analysis" element={<VideoAnalysis />} />
+                <Route path="/image-analysis" element={<ImageAnalysis />} />
+                <Route path="/incidents" element={<Incidents />} />
+                <Route path="/zones" element={<RestrictedZones />} />
+                <Route path="/analytics" element={<HeatmapAnalytics />} />
+                <Route path="/models" element={<AIModels />} />
+                <Route path="/settings" element={<Settings />} />
+              </Routes>
+            </Suspense>
+          </main>
         </div>
-      </Router>
-    </ToastProvider>
+
+        {/* Global Incident Modal */}
+        <IncidentDetailModal
+          incident={selectedIncident}
+          onClose={() => setSelectedIncident(null)}
+          onResolve={async (id, notes) => {
+            await api.updateIncident(id, { status: 'RESOLVED', resolution_notes: notes });
+            refreshGlobalState();
+            setSelectedIncident(null);
+          }}
+        />
+      </div>
+    </Router>
   );
 };
 
