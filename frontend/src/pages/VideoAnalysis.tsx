@@ -18,6 +18,7 @@ import {
   FileVideo
 } from 'lucide-react';
 import { API_BASE, getMediaUrl } from '../services/api';
+import { useToast } from '../context/ToastContext';
 
 interface AnalysisResult {
   job_id: string;
@@ -140,23 +141,23 @@ export const VideoAnalysis: React.FC = () => {
     }
   };
 
+  const { info, warning } = useToast();
+
   // Load sample video directly from the Fire folder
   const loadSampleVideo = async (filename: string, isFire: boolean) => {
     try {
       // Fetch the sample from dataset endpoint or test file
       const url = getMediaUrl(isFire ? `/results/sample_${filename}` : `/dataset/no_fire/${filename}`);
-      // In case local file needs fetching, fallback to creating file from Fire folder or show alert
       const response = await fetch(url);
       if (response.ok) {
         const blob = await response.blob();
         const file = new File([blob], filename, { type: 'video/mp4' });
         handleFileSelected(file);
       } else {
-        // Direct hint to user
-        alert(`You can upload any MP4 from your Fire folder:\nC:\\Users\\lenovo\\OneDrive\\Desktop\\My new major project\\Fire\\${filename}`);
+        info('Video File Selection', `Select or upload ${filename} from your local directory.`);
       }
     } catch (e) {
-      alert(`Please select your fire video from:\nC:\\Users\\lenovo\\OneDrive\\Desktop\\My new major project\\Fire`);
+      info('Select Video', 'Select a video file to begin automated fire & smoke neural analysis.');
     }
   };
 

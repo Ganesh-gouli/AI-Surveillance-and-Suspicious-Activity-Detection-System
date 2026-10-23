@@ -1,13 +1,15 @@
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 
 
-def test_open_browser():
+def test_application_loads():
     driver = webdriver.Chrome()
 
-    driver.get("https://www.facebook.com")
+    driver.get("http://localhost:5173/")
 
-    print("Page title:", driver.title)
+    # Verify that the page has loaded
+    assert driver.find_element(By.TAG_NAME, "body").is_displayed()
 
-    assert "facebook" in driver.title.lower()
+    print("Application loaded successfully")
 
     driver.quit()
