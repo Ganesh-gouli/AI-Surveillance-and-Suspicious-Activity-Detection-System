@@ -37,11 +37,14 @@ class SentinelInferencePipeline:
         zones: List[Dict[str, Any]] = None,
         night_vision_mode: str = "off",
         night_vision_gain: float = 1.0,
-        ir_illuminator: bool = False
+        ir_illuminator: bool = False,
+        conf_threshold: Optional[float] = None,
+        accuracy_mode: str = "high"
     ) -> Dict[str, Any]:
         """
-        Executes low-latency real AI inference pipeline on an incoming video / webcam / image frame.
-        Supports dynamic Night Vision preprocessing (CLAHE, gamma correction, sensor gain).
+        Executes real AI inference pipeline on an incoming video / webcam / image frame.
+        Supports dynamic Night Vision preprocessing, configurable confidence thresholds,
+        and high-accuracy multi-model ensemble (YOLOv11 + Weapon Neural Model + MediaPipe Pose 3D).
         """
         self.frame_count += 1
         zones = zones or []
@@ -91,7 +94,18 @@ class SentinelInferencePipeline:
             )
             
             # 1. Real YOLOv11 Unified Multi-Object and Person Detection (on enhanced frame)
-            person_detections, scene_objects = self.detector.detect(ai_detection_frame)
+            imgsz_map = {
+                "ultra": 512,
+                "high": 416,
+                "balanced": 384,
+                "fast": 320
+            }
+            infer_imgsz = imgsz_map.get(str(accuracy_mode).lower(), 416)
+            person_detections, scene_objects = self.detector.detect(
+                ai_detection_frame,
+                conf_threshold=conf_threshold,
+                imgsz=infer_imgsz
+            )
             
             # Format scene objects for API response
             for obj in scene_objects:
@@ -137,12 +151,18 @@ class SentinelInferencePipeline:
                 has_food = any(l in interacting_labels for l in ["sandwich", "pizza", "apple", "banana", "cake", "donut", "bowl", "fork", "spoon"])
                 has_bag = any(l in interacting_labels for l in ["backpack", "handbag", "suitcase"])
                 has_sports = any(l in interacting_labels for l in ["sports ball", "tennis racket", "baseball bat", "frisbee", "skateboard"])
-                has_weapon_obj = any(obj.get("category") == "weapon" or obj.get("label", "").lower() in ["knife", "scissors", "sword", "automatic rifle", "handgun"] for obj in track.interacting_objects)
+                has_weapon_obj = any(
+                    obj.get("category") in ["threat", "weapon"] or obj.get("label", "").lower() in [
+                        "knife", "scissors", "sword", "automatic rifle", "handgun", "pistol",
+                        "rifle", "shotgun", "iron pipe", "stone", "hammer", "weapon"
+                    ]
+                    for obj in track.interacting_objects
+                )
 
-                # High-Accuracy Ultra-Fast Decision Logic (bypasses heavy Keras call unless specifically needed)
+                # High-Accuracy Ultra-Fast Decision Logic
                 if has_weapon_obj:
                     final_activity = "armed_hazard"
-                    final_conf = 0.96
+                    final_conf = 0.97
                 elif has_laptop_tech:
                     final_activity = "using_laptop"
                     final_conf = 0.95
@@ -204,25 +224,44 @@ class SentinelInferencePipeline:
                 )
 
                 # Safe Normal Postures Guard: Sitting, Standing, Sleeping, Desk Activity
-                # These are standard benign human postures and must NEVER be flagged as suspicious or dangerous.
+                # These are standard benign human postures and must NEVER be flagged as suspicious.
                 is_safe_posture = final_activity.lower() in [
                     "sitting", "standing", "sleeping", "using_laptop", "using_phone",
                     "drinking", "eating", "walking", "carrying_bag", "playing_sports"
                 ]
-                has_weapon = any(
-                    obj.get("category") == "threat" or obj.get("label", "").lower() in ["knife", "scissors", "gun", "sword"]
+                has_weapon = has_weapon_obj or any(
+                    obj.get("category") in ["threat", "weapon"] or obj.get("label", "").lower() in [
+                        "knife", "scissors", "gun", "sword", "handgun", "pistol", "rifle",
+                        "shotgun", "automatic rifle", "iron pipe", "stone", "hammer"
+                    ]
                     for obj in track.interacting_objects
                 )
-                is_violent = "fight" in final_activity.lower()
+                is_violent = "fight" in final_activity.lower() or "armed" in final_activity.lower()
                 is_zone_breach = threat_info and threat_info.get("threat_type") == "UNAUTHORIZED_ENTRY"
 
-                is_suspicious = (threat_info is not None) and (is_violent or has_weapon or is_zone_breach)
+                # Direct escalation: if person has a weapon or armed_hazard, it MUST trigger CRITICAL threat even if behaviour_engine returned None!
+                is_suspicious = (threat_info is not None and (is_violent or has_weapon or is_zone_breach)) or has_weapon or is_violent
                 threat_level = "NORMAL"
 
-                if is_suspicious and threat_info:
-                    threat_level = threat_info.get("severity", "HIGH")
+                if is_suspicious:
+                    if threat_info:
+                        threat_level = threat_info.get("severity", "HIGH")
+                        threat_type = threat_info.get("threat_type", "SUSPICIOUS_BEHAVIOR")
+                    elif has_weapon or is_violent:
+                        threat_level = "CRITICAL"
+                        threat_type = "ARMED_HAZARD"
+                        threat_info = {
+                            "threat_type": threat_type,
+                            "severity": threat_level,
+                            "confidence": 0.97,
+                            "description": "Armed suspect / dangerous equipment detected in surveillance sector."
+                        }
+                    else:
+                        threat_level = "MEDIUM"
+                        threat_type = "SUSPICIOUS_BEHAVIOR"
+
                     track.is_threat = True
-                    track.threat_type = threat_info.get("threat_type")
+                    track.threat_type = threat_type
 
                     # 5. Alert Dispatch
                     alert = self.alert_engine.process_threat(
@@ -236,7 +275,6 @@ class SentinelInferencePipeline:
                 else:
                     track.is_threat = False
                     track.threat_type = None
-
 
                 people_results.append({
                     "track_id": track.track_id,
@@ -265,6 +303,8 @@ class SentinelInferencePipeline:
             "timestamp": datetime.utcnow().isoformat(),
             "fps": min(60.0, calc_fps),
             "inference_time_ms": round(inference_time_ms, 2),
+            "accuracy_mode": accuracy_mode,
+            "imgsz": infer_imgsz if 'infer_imgsz' in locals() else 416,
             "people_count": len(people_results),
             "people": people_results,
             "objects_count": len(objects_results),

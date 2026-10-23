@@ -18,13 +18,18 @@ class TrackedObject:
         self.threat_type = None
 
     def update(self, bbox: List[int], confidence: float, interacting_objects: List[Dict[str, Any]] = None):
-        self.bbox = bbox
-        self.confidence = confidence
+        # Exponential Moving Average (EMA) position smoothing to stabilize bounding boxes
+        alpha = 0.75
+        self.bbox = [
+            int(alpha * n + (1.0 - alpha) * o)
+            for n, o in zip(bbox, self.bbox)
+        ]
+        self.confidence = round(float(0.7 * confidence + 0.3 * self.confidence), 3)
         self.interacting_objects = interacting_objects or []
         self.last_seen = time.time()
         self.hits += 1
         self.time_since_update = 0
-        self.history.append(bbox)
+        self.history.append(self.bbox)
         if len(self.history) > 30:
             self.history.pop(0)
 

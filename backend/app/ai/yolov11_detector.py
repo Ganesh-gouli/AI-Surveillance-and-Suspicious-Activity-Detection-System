@@ -88,6 +88,7 @@ class YOLOv11Detector:
         self.model_name = "YOLOv11-Nano (yolo11n.pt)"
         self.model_file = model_file
         self.classes_map = {}
+        self.weapon_model = None
         self._init_yolov11()
 
     def _init_yolov11(self):
@@ -114,6 +115,22 @@ class YOLOv11Detector:
             self.model = YOLO(resolved_path)
             self.classes_map = self.model.names if hasattr(self.model, 'names') else {}
             print(f"[YOLOv11 Detector] [OK] Successfully initialized YOLOv11! Loaded {len(self.classes_map)} classes.")
+
+            # Load specialized High-Accuracy Weapon Detection Model
+            weapon_candidates = [
+                os.path.join(root_dir, "models", "best_shooting_weapon_detector.pt"),
+                os.path.join(root_dir, "models", "best_weapon_detector.pt"),
+                "models/best_shooting_weapon_detector.pt"
+            ]
+            for wcand in weapon_candidates:
+                if os.path.exists(wcand):
+                    try:
+                        self.weapon_model = YOLO(wcand)
+                        print(f"[YOLOv11 Detector] [OK] Specialized Weapon Neural Model loaded from {wcand} ({len(self.weapon_model.names)} weapon classes).")
+                        break
+                    except Exception as we:
+                        print(f"[YOLOv11 Detector] Note loading weapon model: {we}")
+
         except Exception as e:
             print(f"[YOLOv11 Detector] Error initializing YOLOv11: {e}. Attempting OpenCV fallback.")
             self.model = None
@@ -123,9 +140,9 @@ class YOLOv11Detector:
             except Exception:
                 self.hog = None
 
-    def detect(self, frame: np.ndarray) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def detect(self, frame: np.ndarray, conf_threshold: Optional[float] = None, imgsz: int = 384) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
-        Executes unified YOLOv11 neural inference on a frame.
+        Executes unified YOLOv11 + Weapon Neural Model inference on a frame.
         Returns:
             - detected_people: List of persons with coordinates [x, y, w, h], confidence, and interacting_objects
             - detected_objects: List of all detected context objects with [x, y, w, h], label, category, confidence
@@ -136,11 +153,12 @@ class YOLOv11Detector:
         h, w = frame.shape[:2]
         people = []
         objects = []
+        effective_conf = conf_threshold if conf_threshold is not None else self.conf_threshold
 
         if self.model is not None:
             try:
-                # Run YOLOv11 with optimized 384x384 resolution for ultra-fast low-latency CPU detection
-                results = self.model(frame, imgsz=384, conf=self.conf_threshold, verbose=False)
+                # 1. Run YOLOv11 for people and everyday objects
+                results = self.model(frame, imgsz=imgsz, conf=effective_conf, verbose=False)
                 
                 for r in results:
                     boxes = r.boxes
@@ -175,6 +193,33 @@ class YOLOv11Detector:
                                     "bbox": [bx, by, bw, bh]
                                 })
 
+                # 2. Run Dedicated Weapon Model (Handguns, Rifles, Knives, Shotguns, Swords)
+                if self.weapon_model is not None:
+                    try:
+                        w_results = self.weapon_model(frame, imgsz=imgsz, conf=max(0.24, effective_conf * 0.85), verbose=False)
+                        for wr in w_results:
+                            if len(wr.boxes) == 0:
+                                continue
+                            w_cls_ids = wr.boxes.cls.int().cpu().numpy()
+                            w_confs = wr.boxes.conf.cpu().numpy()
+                            w_xyxys = wr.boxes.xyxy.int().cpu().numpy()
+
+                            for w_cls, w_conf, (wx1, wy1, wx2, wy2) in zip(w_cls_ids, w_confs, w_xyxys):
+                                wbx = max(0, int(wx1))
+                                wby = max(0, int(wy1))
+                                wbw = min(w - wbx, int(wx2 - wx1))
+                                wbh = min(h - wby, int(wy2 - wy1))
+                                w_label = self.weapon_model.names.get(int(w_cls), "weapon").lower()
+
+                                if wbw > 10 and wbh > 10:
+                                    objects.append({
+                                        "label": w_label,
+                                        "category": "threat",
+                                        "confidence": round(float(w_conf), 3),
+                                        "bbox": [wbx, wby, wbw, wbh]
+                                    })
+                    except Exception as we:
+                        pass
 
                 # Perform Spatial Person-Object Association
                 self._associate_person_objects(people, objects)

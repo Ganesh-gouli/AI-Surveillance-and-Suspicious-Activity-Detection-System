@@ -52,6 +52,16 @@ async def process_raw_frame(payload: dict):
     night_vision_mode = payload.get("night_vision_mode", "off")
     night_vision_gain = float(payload.get("night_vision_gain", 1.0))
     ir_illuminator = bool(payload.get("ir_illuminator", False))
+    confidence_threshold = payload.get("confidence_threshold")
+    if confidence_threshold is not None:
+        try:
+            confidence_threshold = float(confidence_threshold)
+            # If passed as percentage (e.g. 35), normalize to 0.0 - 1.0
+            if confidence_threshold > 1.0:
+                confidence_threshold = confidence_threshold / 100.0
+        except (ValueError, TypeError):
+            confidence_threshold = None
+    accuracy_mode = payload.get("accuracy_mode", "high")
     
     if base64_data and "," in base64_data:
         base64_data = base64_data.split(",")[1]
@@ -70,7 +80,9 @@ async def process_raw_frame(payload: dict):
         camera_id=camera_id,
         night_vision_mode=night_vision_mode,
         night_vision_gain=night_vision_gain,
-        ir_illuminator=ir_illuminator
+        ir_illuminator=ir_illuminator,
+        conf_threshold=confidence_threshold,
+        accuracy_mode=accuracy_mode
     )
     return result
 

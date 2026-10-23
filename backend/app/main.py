@@ -60,13 +60,19 @@ app.include_router(analytics.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(models.router, prefix="/api")
 
-# Static files for snapshots and uploaded media
+# Static files for snapshots, uploaded media, and CCTV feeds
 uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
 results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "results")
+videos_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "VIDEOS")
+shooting_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "shooting")
 os.makedirs(uploads_dir, exist_ok=True)
 os.makedirs(results_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=uploads_dir), name="static")
 app.mount("/results", StaticFiles(directory=results_dir), name="results")
+if os.path.exists(videos_dir):
+    app.mount("/videos", StaticFiles(directory=videos_dir), name="videos")
+if os.path.exists(shooting_dir):
+    app.mount("/shooting", StaticFiles(directory=shooting_dir), name="shooting")
 
 # WebSocket Channels
 @app.websocket("/ws/live/{camera_id}")

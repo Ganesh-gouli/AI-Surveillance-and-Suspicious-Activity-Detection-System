@@ -69,6 +69,14 @@ export const LiveWebcam: React.FC = () => {
     clahe_applied: false
   });
 
+  // Accuracy & Neural Model Mode State
+  const [accuracyMode, setAccuracyMode] = useState<'ultra' | 'high' | 'balanced' | 'fast'>('high');
+  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(30);
+  const accuracyModeRef = useRef(accuracyMode);
+  accuracyModeRef.current = accuracyMode;
+  const confidenceThresholdRef = useRef(confidenceThreshold);
+  confidenceThresholdRef.current = confidenceThreshold;
+
   // Refs for low-latency capture loop access without re-binding listeners
   const nightVisionModeRef = useRef(nightVisionMode);
   nightVisionModeRef.current = nightVisionMode;
@@ -209,21 +217,40 @@ export const LiveWebcam: React.FC = () => {
       const t0 = performance.now();
 
       try {
+        const mode = accuracyModeRef.current;
+        let captureW = 640;
+        let captureH = 360;
+        let quality = 0.78;
+        if (mode === 'ultra') {
+          captureW = 854;
+          captureH = 480;
+          quality = 0.82;
+        } else if (mode === 'balanced') {
+          captureW = 576;
+          captureH = 324;
+          quality = 0.70;
+        } else if (mode === 'fast') {
+          captureW = 480;
+          captureH = 270;
+          quality = 0.55;
+        }
+
         let canvas = captureCanvasRef.current;
         if (!canvas) {
           canvas = document.createElement('canvas');
-          canvas.width = 480; // Optimized transfer resolution for instant low-latency inference
-          canvas.height = 270;
           captureCanvasRef.current = canvas;
+        }
+        if (canvas.width !== captureW || canvas.height !== captureH) {
+          canvas.width = captureW;
+          canvas.height = captureH;
         }
 
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.drawImage(video, 0, 0, 480, 270);
-          // High-efficiency JPEG at 0.55 quality produces ~12-14KB payload for ultra-fast <2ms network transfer
-          const base64Data = canvas.toDataURL('image/jpeg', 0.55);
+          ctx.drawImage(video, 0, 0, captureW, captureH);
+          const base64Data = canvas.toDataURL('image/jpeg', quality);
 
-          // Send real frame to FastAPI backend (YOLOv11 + MediaPipe Pose Biomechanics + Night Vision)
+          // Send real frame to FastAPI backend (YOLOv11 + Weapon Detector + MediaPipe Pose 3D)
           const response = await fetch(`${API_BASE}/detection/frame`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -232,7 +259,9 @@ export const LiveWebcam: React.FC = () => {
               camera_id: 'LIVE-WEBCAM',
               night_vision_mode: nightVisionModeRef.current,
               night_vision_gain: sensorGainRef.current,
-              ir_illuminator: irIlluminatorRef.current
+              ir_illuminator: irIlluminatorRef.current,
+              accuracy_mode: mode,
+              confidence_threshold: confidenceThresholdRef.current / 100.0
             })
           });
 
@@ -240,8 +269,8 @@ export const LiveWebcam: React.FC = () => {
             const data = await response.json();
             
             // Scale bounding box & MediaPipe landmark coordinates back to full 1280x720 video display
-            const scaleX = 1280 / 480;
-            const scaleY = 720 / 270;
+            const scaleX = 1280 / captureW;
+            const scaleY = 720 / captureH;
 
             const scaledPeople = (data.people || []).map((p: any) => ({
               ...p,
@@ -493,6 +522,68 @@ export const LiveWebcam: React.FC = () => {
           <span>{mediaError}</span>
         </div>
       )}
+
+      {/* High-Accuracy Neural Detection & Sensitivity Panel */}
+      <div className="bg-[#0a0f19] border border-slate-800 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center flex-wrap gap-3">
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-xs font-mono text-slate-300">
+            <Zap className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="font-bold">DETECTION ACCURACY:</span>
+          </div>
+
+          <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 space-x-1">
+            {[
+              { id: 'ultra', label: 'ULTRA HD (512px)', sub: 'Max Weapon Precision' },
+              { id: 'high', label: 'HIGH ACCURACY (416px)', sub: 'Recommended SOC' },
+              { id: 'balanced', label: 'BALANCED (384px)', sub: '30+ FPS Stable' },
+              { id: 'fast', label: 'FAST (320px)', sub: 'Ultra Low-Latency' },
+            ].map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setAccuracyMode(m.id as any)}
+                className={`px-3 py-1 rounded text-xs font-mono transition-all flex items-center space-x-1 ${
+                  accuracyMode === m.id
+                    ? 'bg-cyan-500 text-slate-950 font-bold shadow-[0_0_12px_rgba(0,240,255,0.4)]'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title={m.sub}
+              >
+                <span>{m.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Confidence Threshold Slider & Ensemble Badges */}
+        <div className="flex items-center flex-wrap gap-4">
+          <div className="flex items-center space-x-2 bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800">
+            <Sliders className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-[11px] font-mono text-slate-400">CONFIDENCE THRESHOLD:</span>
+            <input
+              type="range"
+              min="15"
+              max="75"
+              step="5"
+              value={confidenceThreshold}
+              onChange={(e) => setConfidenceThreshold(parseInt(e.target.value, 10))}
+              className="w-24 accent-amber-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+              title="Minimum AI probability threshold to accept person/weapon detections"
+            />
+            <span className="text-xs font-mono font-bold text-amber-300 w-10 text-right">
+              {confidenceThreshold}%
+            </span>
+          </div>
+
+          <div className="hidden lg:flex items-center space-x-2 text-[10px] font-mono">
+            <span className="px-2 py-1 rounded bg-purple-500/10 border border-purple-500/30 text-purple-300">
+              YOLOv11 + WEAPONS NET
+            </span>
+            <span className="px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
+              MEDIAPIPE POSE 3D v1
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* Tactical Night Vision System Bar */}
       <div className="bg-[#0a0f19] border border-slate-800 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-4 shadow-xl">

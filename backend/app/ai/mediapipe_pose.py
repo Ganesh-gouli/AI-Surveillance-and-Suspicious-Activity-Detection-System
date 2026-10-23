@@ -81,7 +81,7 @@ class MediaPipePoseEngine:
     Extracts 33 3D skeletal landmarks and computes precise biomechanical joint angles
     to accurately differentiate Standing vs. Sitting, Lying Down, and Dynamic Poses.
     """
-    def __init__(self, static_image_mode: bool = False, model_complexity: int = 0):
+    def __init__(self, static_image_mode: bool = False, model_complexity: int = 1):
         self.static_image_mode = static_image_mode
         self.model_complexity = model_complexity
         self.pose = None
@@ -96,11 +96,11 @@ class MediaPipePoseEngine:
                 static_image_mode=self.static_image_mode,
                 model_complexity=self.model_complexity,
                 enable_segmentation=False,
-                min_detection_confidence=0.40,
-                min_tracking_confidence=0.40
+                min_detection_confidence=0.45,
+                min_tracking_confidence=0.45
             )
             self.is_initialized = True
-            print("[MediaPipe Pose] [OK] MediaPipe Pose Biomechanical Engine initialized (Lite model).")
+            print(f"[MediaPipe Pose] [OK] MediaPipe Pose Biomechanical Engine initialized (High-Accuracy Model Complexity {self.model_complexity}).")
         except Exception as e:
             print(f"[MediaPipe Pose] Initialization error: {e}")
             self.pose = None
