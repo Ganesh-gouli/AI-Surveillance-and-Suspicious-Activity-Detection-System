@@ -58,10 +58,15 @@ def test_forklift_collision_video():
     assert res["is_accident"] is True, "Failed to detect forklift collision accident"
     assert res["accident_type"] == "FORKLIFT_VEHICLE_COLLISION", f"Wrong accident type: {res['accident_type']}"
     assert res["overall_confidence"] >= 0.98, f"Confidence below 98%: {res['overall_confidence'] * 100:.1f}%"
+    assert res["vehicles_count"] == 3, f"Expected 3 active forklifts detected, got {res['vehicles_count']}"
+    assert len(res.get("fleet", [])) == 3, f"Expected fleet size 3, got {len(res.get('fleet', []))}"
+    fleet_ids = [f["id"] for f in res.get("fleet", [])]
+    assert "FL-01" in fleet_ids and "FL-02" in fleet_ids and "FL-03" in fleet_ids, f"Expected FL-01, FL-02, FL-03 in {fleet_ids}"
+    assert res.get("collision_intercept", {}).get("pair") == ["FL-02", "FL-03"], "Expected collision intercept pair to be FL-02 and FL-03"
     assert len(res["segments"]) >= 1, "Expected at least 1 confirmed incident time segment"
     assert os.path.exists(out_vpath), f"Processed video output missing: {out_vpath}"
     assert os.path.getsize(out_vpath) > 10000, f"Processed video file too small: {os.path.getsize(out_vpath)} bytes"
-    print("\n[OK] TEST 1 PASSED: Forklift collision accurately classified with >= 98% confidence!")
+    print("\n[OK] TEST 1 PASSED: 3 Forklifts (FL-01, FL-02, FL-03) and blind corner collision accurately detected with >= 98% confidence!")
 
 
 def test_cargo_pallet_collapse_video():
