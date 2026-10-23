@@ -18,6 +18,7 @@ const VideoAnalysis = lazy(() => import('./pages/VideoAnalysis').then(m => ({ de
 const FightingDetection = lazy(() => import('./pages/FightingDetection').then(m => ({ default: m.FightingDetection })));
 const ShootingDetection = lazy(() => import('./pages/ShootingDetection').then(m => ({ default: m.ShootingDetection })));
 const ATMVandalismDetection = lazy(() => import('./pages/ATMVandalismDetection').then(m => ({ default: m.ATMVandalismDetection })));
+const IndustrialAccidentDetection = lazy(() => import('./pages/IndustrialAccidentDetection').then(m => ({ default: m.IndustrialAccidentDetection })));
 const ImageAnalysis = lazy(() => import('./pages/ImageAnalysis').then(m => ({ default: m.ImageAnalysis })));
 const Incidents = lazy(() => import('./pages/Incidents').then(m => ({ default: m.Incidents })));
 const RestrictedZones = lazy(() => import('./pages/RestrictedZones').then(m => ({ default: m.RestrictedZones })));
@@ -95,6 +96,7 @@ export const App: React.FC = () => {
                 <Route path="/monitoring" element={<LiveMonitoring />} />
                 <Route path="/webcam" element={<LiveWebcam />} />
                 <Route path="/cameras" element={<CameraManagement />} />
+                <Route path="/industrial-accidents" element={<IndustrialAccidentDetection />} />
                 <Route path="/atm-detection" element={<ATMVandalismDetection />} />
                 <Route path="/shooting-detection" element={<ShootingDetection />} />
                 <Route path="/fighting-detection" element={<FightingDetection />} />

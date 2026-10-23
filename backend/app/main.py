@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .database.session import init_db
-from .api.routers import cameras, videos, detection, incidents, zones, analytics, system, models, fire, fighting, shooting, atm
+from .api.routers import cameras, videos, detection, incidents, zones, analytics, system, models, fire, fighting, shooting, atm, accidents
 from .websocket.connection_manager import manager
 from .ai.inference_pipeline import global_pipeline
 
@@ -49,6 +49,7 @@ def on_startup():
 # Mount API Routers
 app.include_router(cameras.router, prefix="/api")
 app.include_router(videos.router, prefix="/api")
+app.include_router(accidents.router, prefix="/api")
 app.include_router(atm.router, prefix="/api")
 app.include_router(fire.router, prefix="/api")
 app.include_router(fighting.router, prefix="/api")
@@ -60,19 +61,13 @@ app.include_router(analytics.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(models.router, prefix="/api")
 
-# Static files for snapshots, uploaded media, and CCTV feeds
+# Static files for snapshots and uploaded media
 uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
 results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "results")
-videos_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "VIDEOS")
-shooting_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "shooting")
 os.makedirs(uploads_dir, exist_ok=True)
 os.makedirs(results_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=uploads_dir), name="static")
 app.mount("/results", StaticFiles(directory=results_dir), name="results")
-if os.path.exists(videos_dir):
-    app.mount("/videos", StaticFiles(directory=videos_dir), name="videos")
-if os.path.exists(shooting_dir):
-    app.mount("/shooting", StaticFiles(directory=shooting_dir), name="shooting")
 
 # WebSocket Channels
 @app.websocket("/ws/live/{camera_id}")

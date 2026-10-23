@@ -15,7 +15,8 @@ import {
   Flame,
   Swords,
   Crosshair,
-  ShieldAlert
+  ShieldAlert,
+  HardHat
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -25,6 +26,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activeThreatCount = 4 }) => {
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/industrial-accidents', label: 'Industrial Accident AI', icon: HardHat, badge: '🚜 98%' },
     { to: '/atm-detection', label: 'ATM Defense & Breaking AI', icon: ShieldAlert, badge: '🏧 98%' },
     { to: '/shooting-detection', label: 'Shooting & Weapon AI', icon: Crosshair, badge: '🎯 NEW' },
     { to: '/fighting-detection', label: 'Fighting Detection AI', icon: Swords, badge: '🥊' },
