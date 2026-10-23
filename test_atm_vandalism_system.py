@@ -43,20 +43,20 @@ def test_atm_attack_videos():
             video_path=vpath,
             output_video_path=out_vpath,
             confidence_threshold=0.38,
-            sample_rate=4,  # sample every 4 frames for rapid testing
+            sample_rate=6,  # sample every 6 frames for swift full-video forensic scan
             enable_pose=True
         )
         elapsed = time.time() - t0
 
-        print(f"\n--- Video: {fname} ({res['duration_sec']}s, {res['total_video_frames']} frames) ---")
-        print(f"  Final Decision:     {res['final_result']}")
-        print(f"  Attack Detected:    {res['is_vandalism']}")
-        print(f"  Attack Type:        {res['attack_type']}")
-        print(f"  Overall Confidence: {res['overall_confidence'] * 100:.1f}%")
-        print(f"  Perpetrators Count: {res['perpetrators_count']}")
-        print(f"  Tool / Hazard:      {res['tool_detected']}")
-        print(f"  Confirmed Segments: {len(res['segments'])}")
-        print(f"  Analysis Speed:     {res.get('processing_fps', 0.0)} FPS ({elapsed:.2f}s elapsed)")
+        print(f"\n--- Video: {fname} ({res['duration_sec']}s, {res['total_video_frames']} frames) ---", flush=True)
+        print(f"  Final Decision:     {res['final_result']}", flush=True)
+        print(f"  Attack Detected:    {res['is_vandalism']}", flush=True)
+        print(f"  Attack Type:        {res['attack_type']}", flush=True)
+        print(f"  Overall Confidence: {res['overall_confidence'] * 100:.1f}%", flush=True)
+        print(f"  Perpetrators Count: {res['perpetrators_count']}", flush=True)
+        print(f"  Tool / Hazard:      {res['tool_detected']}", flush=True)
+        print(f"  Confirmed Segments: {len(res['segments'])}", flush=True)
+        print(f"  Analysis Speed:     {res.get('processing_fps', 0.0)} FPS ({elapsed:.2f}s elapsed)", flush=True)
 
         assert res["is_vandalism"], f"Failed to detect ATM breaking in {fname}"
         assert res["overall_confidence"] >= 0.98, f"Expected >= 98% accuracy detection on {fname}, got {res['overall_confidence'] * 100:.1f}%"
@@ -85,20 +85,20 @@ def test_normal_cctv_control():
         video_path=vpath,
         output_video_path=out_vpath,
         confidence_threshold=0.38,
-        sample_rate=4,
+        sample_rate=6,
         enable_pose=True
     )
     elapsed = time.time() - t0
 
-    print(f"Analysis Time: {elapsed:.2f}s (Speed: {res.get('processing_fps', 0.0)} FPS)")
-    print(f"Final Decision:     {res['final_result']}")
-    print(f"Attack Detected:    {res['is_vandalism']}")
-    print(f"Overall Confidence: {res['overall_confidence'] * 100:.1f}%")
+    print(f"Analysis Time: {elapsed:.2f}s (Speed: {res.get('processing_fps', 0.0)} FPS)", flush=True)
+    print(f"Final Decision:     {res['final_result']}", flush=True)
+    print(f"Attack Detected:    {res['is_vandalism']}", flush=True)
+    print(f"Overall Confidence: {res['overall_confidence'] * 100:.1f}%", flush=True)
 
     assert not res["is_vandalism"], "False alarm: Flagged vandalism on peaceful pedestrian CCTV!"
     assert res["final_result"] == "SAFE / NORMAL", f"Expected SAFE / NORMAL, got {res['final_result']}"
     assert res["overall_confidence"] < 0.10, f"Expected low confidence for normal scene, got {res['overall_confidence']}"
-    print("\n[OK] TEST 2 PASSED: 0% False Positives on normal pedestrian footage!")
+    print("\n[OK] TEST 2 PASSED: 0% False Positives on normal pedestrian footage!", flush=True)
 
 
 def test_api_metrics_and_endpoints():

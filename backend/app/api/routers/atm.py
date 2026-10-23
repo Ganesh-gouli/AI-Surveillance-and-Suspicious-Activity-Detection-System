@@ -269,12 +269,12 @@ async def list_sample_videos():
                 cap.release()
 
                 desc_map = {
-                    "30a.mp4": "Violent Screen & Chassis Sledge/Pipe Smashing",
-                    "30b.mp4": "Armed Intrusion & Kiosk Blunt Force Attack",
+                    "30a.mp4": "Violent Overhead Iron Pipe / Metal Rod Attack",
+                    "30b.mp4": "Armed Intrusion & Iron Pipe Chassis Smashing",
                     "5.mp4": "Coordinated Crowbar Vault Prying & Safe Breach",
-                    "75.mp4": "Tow Chain Dislodgement & ATM Kiosk Yank",
-                    "80.mp4": "Lower Cash Dispenser Tampering & Forced Entry",
-                    "88.mp4": "Midnight Masked Rock/Hammer Violent Smashing"
+                    "75.mp4": "Vehicular Tow Chain & Winch Extraction Attack",
+                    "80.mp4": "Crowbar Lower Cash Dispenser Forced Entry",
+                    "88.mp4": "Heavy Stone / Rock Repeated ATM Keypad Smashing"
                 }
 
                 sample_list.append({
