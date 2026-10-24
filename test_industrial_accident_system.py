@@ -106,10 +106,17 @@ def test_cargo_pallet_collapse_video():
     assert res["is_accident"] is True, "Failed to detect cargo stack collapse accident"
     assert res["accident_type"] == "CARGO_STACK_COLLAPSE", f"Wrong accident type: {res['accident_type']}"
     assert res["overall_confidence"] >= 0.98, f"Confidence below 98%: {res['overall_confidence'] * 100:.1f}%"
+    assert "stack_alignment" in res, "Missing stack_alignment tracking in result"
+    stack_align = res["stack_alignment"]
+    assert stack_align["monitored"] is True, "Expected stack alignment to be monitored"
+    assert stack_align["peak_tilt_deg"] >= 8.0, f"Expected peak tilt >= 8.0 deg, got {stack_align['peak_tilt_deg']}"
+    assert stack_align["max_deflection_px"] >= 15, f"Expected max deflection >= 15px, got {stack_align['max_deflection_px']}"
+    assert stack_align["early_warning_issued"] is True, "Expected predictive early warning to be issued before collapse"
+    print(f"  Stack Alignment:    Peak Tilt: {stack_align['peak_tilt_deg']} deg, Max Deflection: {stack_align['max_deflection_px']}px, Warning Issued: {stack_align['early_warning_issued']}")
     assert len(res["segments"]) >= 1, "Expected at least 1 confirmed incident time segment"
     assert os.path.exists(out_vpath), f"Processed video output missing: {out_vpath}"
     assert os.path.getsize(out_vpath) > 10000, f"Processed video file too small: {os.path.getsize(out_vpath)} bytes"
-    print("\n[OK] TEST 2 PASSED: Pallet / cargo collapse accurately classified with >= 98% confidence!")
+    print("\n[OK] TEST 2 PASSED: Pallet / cargo collapse & stack alignment / tilt degree accurately classified with >= 98% confidence!")
 
 
 def test_normal_cctv_control():
