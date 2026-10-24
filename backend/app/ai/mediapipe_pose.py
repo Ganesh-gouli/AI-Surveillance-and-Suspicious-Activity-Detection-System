@@ -129,9 +129,9 @@ class MediaPipePoseEngine:
         frame_h, frame_w = frame.shape[:2]
         x, y, bw, bh = bbox
         
-        # Add 12% padding margin around person crop to ensure full limbs/feet are captured
-        pad_x = int(bw * 0.12)
-        pad_y = int(bh * 0.12)
+        # Add 16% padding margin around person crop to ensure full limbs/feet/head are captured
+        pad_x = int(bw * 0.16)
+        pad_y = int(bh * 0.16)
         x1 = max(0, x - pad_x)
         y1 = max(0, y - pad_y)
         x2 = min(frame_w, x + bw + pad_x)
@@ -144,10 +144,10 @@ class MediaPipePoseEngine:
         crop_h, crop_w = crop.shape[:2]
 
         try:
-            # Optimize: scale crop to max 240px for ultra-fast (15-20ms) pose processing
+            # Optimize: scale crop to max 384px for high-accuracy landmark resolution
             max_dim = max(crop_w, crop_h)
-            if max_dim > 240:
-                scale = 240.0 / max_dim
+            if max_dim > 384:
+                scale = 384.0 / max_dim
                 proc_crop = cv2.resize(crop, (int(crop_w * scale), int(crop_h * scale)))
             else:
                 proc_crop = crop
@@ -204,7 +204,7 @@ class MediaPipePoseEngine:
 
     def _compute_biomechanics(self, landmarks, crop_w: int, crop_h: int) -> Dict[str, Any]:
         """
-        Computes accurate angles and determines standing vs. sitting.
+        Computes accurate angles and determines standing vs. sitting vs. sleeping.
         """
         # Helper to get (x, y) and visibility
         def get_pt(idx):
@@ -242,15 +242,21 @@ class MediaPipePoseEngine:
         # Angle of spine with vertical axis: 0° is completely upright, 90° is completely horizontal
         spine_incline = math.degrees(math.atan2(dx_spine, max(1.0, dy_spine)))
 
-        # 4. Thigh Verticality vs Horizontality
-        # For standing, knees are far below hips vertically (dy >> dx).
-        # For sitting, thighs are extended horizontally forward (dy is small, knees close in height to hips).
+        # 4. Shoulder & Hip Stacking (for side-lying detection)
+        dx_sh = abs(l_sh[0] - r_sh[0])
+        dy_sh = abs(l_sh[1] - r_sh[1])
+        shoulders_stacked = (dy_sh > dx_sh * 1.15) and (min(l_sh_v, r_sh_v) > 0.35)
+
+        dx_hip = abs(l_hip[0] - r_hip[0])
+        dy_hip = abs(l_hip[1] - r_hip[1])
+        hips_stacked = (dy_hip > dx_hip * 1.15) and (min(l_hip_v, r_hip_v) > 0.35)
+
+        # 5. Thigh Verticality vs Horizontality
         l_thigh_dy = l_knee[1] - l_hip[1]
         l_thigh_dx = abs(l_knee[0] - l_hip[0])
         r_thigh_dy = r_knee[1] - r_hip[1]
         r_thigh_dx = abs(r_knee[0] - r_hip[0])
 
-        # Knee & Hip Visibility Check (Ankles often out of frame in webcam)
         valid_knees = [k for k in [l_knee_angle, r_knee_angle] if k is not None]
         valid_hips = [h for h in [l_hip_angle, r_hip_angle] if h is not None]
         avg_knee = sum(valid_knees) / len(valid_knees) if valid_knees else None
@@ -275,11 +281,13 @@ class MediaPipePoseEngine:
         # Full body is confirmed when lower limbs (knees and ankles) are in frame
         is_full_body = has_ankles or (has_knees and max_thigh_drop > crop_h * 0.25)
 
-        # 5. Determine Pose / Activity
-        # Case A: Lying Down / Sleeping (horizontal spine > 52° from vertical)
-        # Must have visible landmarks AND genuinely inclined spine — not just a wide bbox
-        if spine_incline > 52.0 and min(l_sh_v, r_sh_v, l_hip_v, r_hip_v) > 0.35:
-            conf = min(0.98, 0.85 + (spine_incline / 90.0) * 0.13)
+        # 6. Determine Pose / Activity directly via MediaPipe:
+        # Case A: Lying Down / Sleeping
+        is_recumbent_spine = (spine_incline > 45.0 and min(l_sh_v, r_sh_v, l_hip_v, r_hip_v) > 0.30)
+        is_side_lying = (shoulders_stacked or hips_stacked) and (spine_incline > 35.0 or (crop_w > crop_h * 1.1))
+
+        if is_recumbent_spine or is_side_lying:
+            conf = min(0.98, max(0.92, 0.88 + (spine_incline / 90.0) * 0.10))
             return {
                 "activity": "sleeping",
                 "confidence": round(conf, 3),
@@ -288,10 +296,10 @@ class MediaPipePoseEngine:
                 "is_lying": True,
                 "is_full_body": is_full_body,
                 "angles": angles_data,
-                "posture_details": f"Lying Down / Sleeping (Spine Incline: {spine_incline:.1f}° from vertical)"
+                "posture_details": f"Sleeping / Lying Down (Spine Incline: {spine_incline:.1f}°)"
             }
 
-        # Case B: Full Body Detected with Biomechanical Joints
+        # Case B: Full Body Standing
         if is_full_body and avg_hip is not None and spine_incline < 35.0:
             if avg_hip >= 135.0 or (avg_knee is not None and avg_knee >= 142.0):
                 conf = round(min(0.99, max(0.92, 0.90 + (avg_hip - 135.0) / 45.0 * 0.09)), 3)

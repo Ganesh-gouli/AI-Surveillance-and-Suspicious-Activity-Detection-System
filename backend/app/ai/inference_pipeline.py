@@ -160,22 +160,33 @@ class SentinelInferencePipeline:
                 is_standing_pose = pose_data.get("is_standing", False)
                 is_full_body = pose_data.get("is_full_body", None)
 
-                # Infer basic human activity via strict 4-rule hierarchy:
-                # Full body + stationary = standing, slow = walking, fast = running, half body = sitting
-                raw_activity, raw_conf = self.detector.infer_posture_and_activity(
-                    bbox=track.bbox,
-                    interacting_objects=track.interacting_objects,
-                    frame_dim=(w, h),
-                    velocity=track.velocity,
-                    spine_incline=spine_incline,
-                    is_standing_pose=is_standing_pose,
-                    is_full_body=is_full_body
-                )
+                # 3. Google MediaPipe Pose Direct Classification for standing, sleeping, sitting
+                pose_act = pose_data.get("activity", "sitting")
+                pose_conf = pose_data.get("confidence", 0.95)
 
-                # MediaPipe sleeping override (recumbent spine detected by biomechanics)
                 if pose_act == "sleeping":
                     raw_activity = "sleeping"
-                    raw_conf = max(raw_conf, pose_conf)
+                    raw_conf = pose_conf
+                elif pose_act == "standing":
+                    # Full-body upright standing detected by MediaPipe: check locomotion speed
+                    if track.velocity >= 55.0:
+                        raw_activity = "running"
+                        raw_conf = 0.96
+                    elif track.velocity >= 15.0:
+                        raw_activity = "walking"
+                        raw_conf = 0.95
+                    else:
+                        raw_activity = "standing"
+                        raw_conf = pose_conf
+                else:
+                    # Sitting detected by MediaPipe (half-visible body or seated hip flexion)
+                    # Check for tabletop device interactions (laptop, phone, tv)
+                    device_act = self.detector.infer_activity_from_objects(track.interacting_objects)
+                    if device_act:
+                        raw_activity, raw_conf = device_act
+                    else:
+                        raw_activity = "sitting"
+                        raw_conf = pose_conf
 
                 # Temporal smoothing over rolling window: eliminates flicker and guarantees 100% stable accuracy
                 final_activity, final_conf = track.update_activity(raw_activity, raw_conf)
