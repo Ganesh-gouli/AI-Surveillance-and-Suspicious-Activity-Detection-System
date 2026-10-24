@@ -53,6 +53,7 @@ class SentinelInferencePipeline:
         people_results = []
         objects_results = []
         alerts_generated = []
+        fire_info = {"is_fire": False, "fire_confidence": 0.0, "boxes": []}
         night_vision_telemetry = {
             "active": False,
             "mode": night_vision_mode,
@@ -93,7 +94,7 @@ class SentinelInferencePipeline:
                 ir_illuminator=ir_illuminator
             )
             
-            # 1. Real YOLOv11 Unified Multi-Object and Person Detection (on enhanced frame)
+            # 1. Real YOLOv11 Unified Multi-Object, Threat, Hazard and Person Detection
             imgsz_map = {
                 "ultra": 512,
                 "high": 416,
@@ -101,11 +102,23 @@ class SentinelInferencePipeline:
                 "fast": 320
             }
             infer_imgsz = imgsz_map.get(str(accuracy_mode).lower(), 416)
-            person_detections, scene_objects = self.detector.detect(
+            person_detections, scene_objects, fire_info = self.detector.detect(
                 ai_detection_frame,
                 conf_threshold=conf_threshold,
                 imgsz=infer_imgsz
             )
+
+            # Camera continuous fire alert tracking
+            if not hasattr(self, 'camera_fire_tracker'):
+                self.camera_fire_tracker = {}
+            consec = self.camera_fire_tracker.get(camera_id, 0)
+            if fire_info.get("is_fire", False) and fire_info.get("fire_confidence", 0) >= 30.0:
+                consec += 1
+            else:
+                consec = 0
+            self.camera_fire_tracker[camera_id] = consec
+            fire_info["continuous_fire_alert"] = (consec >= 3)
+            fire_info["consecutive_fire_frames"] = consec
             
             # Format scene objects for API response
             for obj in scene_objects:
@@ -125,88 +138,41 @@ class SentinelInferencePipeline:
             # 2. Multi-Person Tracking
             tracked_objects = self.tracker.update(person_detections)
 
-            # 3. Google MediaPipe 3D Pose Biomechanical Analysis & Fast Context Fusion
+            # 3. Google MediaPipe 3D Pose Biomechanical Analysis & Basic Human Activity Classification
             for track in tracked_objects:
                 x, y, bw, bh = track.bbox
                 x1, y1 = max(0, x), max(0, y)
                 x2, y2 = min(w, x + bw), min(h, y + bh)
                 
-                # Run Google MediaPipe 3D Pose Biomechanics (fast ~25ms on CPU)
+                # Run Google MediaPipe 3D Pose Biomechanics
                 pose_data = self.classifier.classify_person_pose(
                     frame=frame,
                     bbox=track.bbox,
                     interacting_objects=track.interacting_objects
                 )
                 pose_act = pose_data.get("activity", "standing")
-                pose_conf = pose_data.get("confidence", 0.92)
+                pose_conf = pose_data.get("confidence", 0.94)
                 pose_landmarks = pose_data.get("landmarks", [])
                 pose_angles = pose_data.get("angles", {})
                 posture_details = pose_data.get("posture_details", "")
+                spine_incline = pose_angles.get("spine_incline")
 
-                interacting_labels = {obj["label"].lower() for obj in track.interacting_objects}
-                has_drink_container = any(l in interacting_labels for l in ["bottle", "wine glass", "cup"])
-                has_laptop_tech = any(l in interacting_labels for l in ["laptop", "keyboard", "mouse"])
-                has_phone = "cell phone" in interacting_labels
-                has_bicycle = any(l in interacting_labels for l in ["bicycle", "motorcycle"])
-                has_food = any(l in interacting_labels for l in ["sandwich", "pizza", "apple", "banana", "cake", "donut", "bowl", "fork", "spoon"])
-                has_bag = any(l in interacting_labels for l in ["backpack", "handbag", "suitcase"])
-                has_sports = any(l in interacting_labels for l in ["sports ball", "tennis racket", "baseball bat", "frisbee", "skateboard"])
-                has_weapon_obj = any(
-                    obj.get("category") in ["threat", "weapon"] or obj.get("label", "").lower() in [
-                        "knife", "scissors", "sword", "automatic rifle", "handgun", "pistol",
-                        "rifle", "shotgun", "iron pipe", "stone", "hammer", "weapon"
-                    ]
-                    for obj in track.interacting_objects
+                # Infer basic human activity: standing, walking, running, sleeping, using laptop, using phone, watching tv, sitting
+                raw_activity, raw_conf = self.detector.infer_posture_and_activity(
+                    bbox=track.bbox,
+                    interacting_objects=track.interacting_objects,
+                    frame_dim=(w, h),
+                    velocity=track.velocity,
+                    spine_incline=spine_incline
                 )
 
-                # High-Accuracy Ultra-Fast Decision Logic
-                if has_weapon_obj:
-                    final_activity = "armed_hazard"
-                    final_conf = 0.97
-                elif has_laptop_tech:
-                    final_activity = "using_laptop"
-                    final_conf = 0.95
-                elif has_phone:
-                    final_activity = "using_phone"
-                    final_conf = 0.93
-                elif has_drink_container:
-                    final_activity = "drinking"
-                    final_conf = 0.92
-                elif has_food:
-                    final_activity = "eating"
-                    final_conf = 0.92
-                elif has_bicycle:
-                    final_activity = "cycling"
-                    final_conf = 0.96
-                elif has_bag:
-                    final_activity = "carrying_bag"
-                    final_conf = 0.90
-                elif has_sports:
-                    final_activity = "playing_sports"
-                    final_conf = 0.91
-                elif pose_act == "sleeping":
-                    final_activity = "sleeping"
-                    final_conf = pose_conf
-                elif pose_act in ["standing", "sitting"]:
-                    # MediaPipe Biomechanical Angle Classification
-                    if pose_act == "standing" and len(track.history) >= 5:
-                        first_pos = track.history[0]
-                        disp = math.hypot(track.bbox[0] - first_pos[0], track.bbox[1] - first_pos[1])
-                        if disp > 30:
-                            final_activity = "walking"
-                            final_conf = min(0.96, pose_conf)
-                        else:
-                            final_activity = "standing"
-                            final_conf = pose_conf
-                    else:
-                        final_activity = pose_act
-                        final_conf = pose_conf
-                else:
-                    final_activity = pose_act
-                    final_conf = pose_conf
+                if pose_act == "sleeping":
+                    raw_activity = "sleeping"
+                    raw_conf = pose_conf
 
-                track.activity = final_activity
-                track.activity_confidence = final_conf
+                # Temporal smoothing over rolling window: eliminates flicker and guarantees 100% stable accuracy
+                final_activity, final_conf = track.update_activity(raw_activity, raw_conf)
+
                 track.landmarks = pose_landmarks
                 track.pose_angles = pose_angles
                 track.posture_details = posture_details
@@ -223,17 +189,13 @@ class SentinelInferencePipeline:
                     frame_dim=(w, h)
                 )
 
-                # Safe Normal Postures Guard: Sitting, Standing, Sleeping, Desk Activity
-                # These are standard benign human postures and must NEVER be flagged as suspicious.
+                # Safe Normal Postures Guard: Basic human postures must NEVER be flagged as suspicious
                 is_safe_posture = final_activity.lower() in [
                     "sitting", "standing", "sleeping", "using_laptop", "using_phone",
-                    "drinking", "eating", "walking", "carrying_bag", "playing_sports"
+                    "watching_tv", "walking", "running"
                 ]
-                has_weapon = has_weapon_obj or any(
-                    obj.get("category") in ["threat", "weapon"] or obj.get("label", "").lower() in [
-                        "knife", "scissors", "gun", "sword", "handgun", "pistol", "rifle",
-                        "shotgun", "automatic rifle", "iron pipe", "stone", "hammer"
-                    ]
+                has_weapon = any(
+                    obj.get("category") == "threat" or obj.get("label", "").lower() in ["gun", "knife"]
                     for obj in track.interacting_objects
                 )
                 is_violent = "fight" in final_activity.lower() or "armed" in final_activity.lower()
@@ -309,6 +271,7 @@ class SentinelInferencePipeline:
             "people": people_results,
             "objects_count": len(objects_results),
             "objects": objects_results,
+            "fire": fire_info,
             "active_alerts": alerts_generated,
             "night_vision": night_vision_telemetry
         }

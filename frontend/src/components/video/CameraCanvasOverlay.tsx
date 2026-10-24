@@ -18,11 +18,11 @@ interface CameraCanvasOverlayProps {
 
 const CATEGORY_COLORS: Record<string, { stroke: string; fill: string }> = {
   electronics: { stroke: '#c084fc', fill: 'rgba(192, 132, 252, 0.15)' },
+  threat: { stroke: '#ef4444', fill: 'rgba(239, 68, 68, 0.28)' },
+  fire_hazard: { stroke: '#ff4500', fill: 'rgba(255, 69, 0, 0.25)' },
   sustenance: { stroke: '#34d399', fill: 'rgba(52, 211, 153, 0.15)' },
   mobility: { stroke: '#38bdf8', fill: 'rgba(56, 189, 248, 0.15)' },
   luggage: { stroke: '#fbbf24', fill: 'rgba(251, 191, 36, 0.15)' },
-  threat: { stroke: '#f87171', fill: 'rgba(248, 113, 113, 0.25)' },
-  threat_or_dining: { stroke: '#fb923c', fill: 'rgba(251, 146, 60, 0.18)' },
   furniture: { stroke: '#94a3b8', fill: 'rgba(148, 163, 184, 0.12)' },
   sports: { stroke: '#2dd4bf', fill: 'rgba(45, 212, 191, 0.15)' },
   general_object: { stroke: '#818cf8', fill: 'rgba(129, 140, 248, 0.15)' }
@@ -47,7 +47,7 @@ const POSE_CONNECTIONS: [number, number][] = [
 // Safe benign activities that must NEVER trigger red colors or suspicious flags
 const SAFE_ACTIVITIES = new Set([
   'SITTING', 'STANDING', 'SLEEPING', 'USING_LAPTOP', 'USING_PHONE',
-  'DRINKING', 'EATING', 'WALKING', 'CARRYING_BAG', 'PLAYING_SPORTS'
+  'WATCHING_TV', 'WALKING', 'RUNNING'
 ]);
 
 interface SmoothedPerson {
@@ -214,24 +214,32 @@ export const CameraCanvasOverlay: React.FC<CameraCanvasOverlayProps> = ({
           const isSafeActivity = SAFE_ACTIVITIES.has(upperActivity);
 
           const hasWeapon = (p.interacting_objects || []).some(
-            (o) => o.category === 'threat' || ['knife', 'scissors', 'weapon'].includes(o.label.toLowerCase())
+            (o) => o.category === 'threat' || ['knife', 'gun', 'weapon'].includes(o.label.toLowerCase())
           );
           const isFighting = upperActivity.includes('FIGHT');
 
           const isThreat = !isSafeActivity && (isFighting || hasWeapon || p.threat_level === 'CRITICAL');
 
-          // Palette selection based on posture / activity
+          // Palette selection based on posture / basic activity
           let mainColor = '#00f0ff'; // Vibrant Cyber Cyan default
           if (isThreat) {
-            mainColor = '#ef4444'; // Red ONLY on true dangerous threats
+            mainColor = '#ef4444'; // Red ONLY on true dangerous threats (gun, knife, fight)
           } else if (upperActivity === 'STANDING') {
             mainColor = '#10b981'; // Calm Emerald for Standing
+          } else if (upperActivity === 'WALKING') {
+            mainColor = '#06b6d4'; // Bright Cyan for Walking
+          } else if (upperActivity === 'RUNNING') {
+            mainColor = '#f59e0b'; // Dynamic Amber-Gold for Running
           } else if (upperActivity === 'SITTING') {
-            mainColor = '#00f0ff'; // Neon Cyan for Sitting
+            mainColor = '#3b82f6'; // Electric Blue for Sitting
           } else if (upperActivity === 'SLEEPING') {
             mainColor = '#a855f7'; // Peaceful Violet for Sleeping
-          } else if (upperActivity.includes('LAPTOP') || upperActivity.includes('PHONE')) {
-            mainColor = '#38bdf8'; // Sky Blue for tech interactions
+          } else if (upperActivity.includes('LAPTOP')) {
+            mainColor = '#8b5cf6'; // Indigo-Purple for Laptop
+          } else if (upperActivity.includes('PHONE')) {
+            mainColor = '#ec4899'; // Pink-Magenta for Phone
+          } else if (upperActivity.includes('TV')) {
+            mainColor = '#14b8a6'; // Teal for TV Screen
           }
 
           // A. Draw MediaPipe 3D Skeletal Wireframe

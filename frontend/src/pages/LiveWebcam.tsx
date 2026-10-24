@@ -320,25 +320,12 @@ export const LiveWebcam: React.FC = () => {
               }
             }
 
-            // Real-Time PyTorch Fire Detection Check (Section 11)
-            if (fireMonitorActive) {
-              try {
-                const fireRes = await fetch(`${API_BASE}/fire/detect-frame`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    image_base64: base64Data,
-                    camera_id: 'LIVE-WEBCAM'
-                  })
-                });
-                if (fireRes.ok && isMounted) {
-                  const fData = await fireRes.json();
-                  setFireData(fData);
-                  if (fData.continuous_fire_alert) {
-                    audioService.playCriticalAlarm();
-                  }
-                }
-              } catch (fErr) {}
+            // Unified Real-Time Fire Detection (Directly in single-pass API with zero lag)
+            if (data.fire) {
+              setFireData(data.fire);
+              if (data.fire.continuous_fire_alert) {
+                audioService.playCriticalAlarm();
+              }
             }
 
             const elapsed = performance.now() - t0;
@@ -1222,25 +1209,69 @@ export const LiveWebcam: React.FC = () => {
               </div>
             </div>
 
-            {/* Target Activity Classes Bar */}
+            {/* Target Activity Classes Bar (Basic Human Activities) */}
             <div className="space-y-2 pt-2 border-t border-slate-800">
-              <span className="text-[10px] font-mono text-slate-500 block">SUPPORTED ACTIVITIES</span>
+              <span className="text-[10px] font-mono text-slate-500 block">BASIC HUMAN ACTIVITIES</span>
               <div className="flex flex-wrap gap-1.5">
-                {["sitting", "standing", "using_laptop", "using_phone", "drinking", "eating", "cycling", "running", "fighting", "sleeping", "carrying_bag"].map((cls) => {
-                  const isActive = people.length > 0 && people[0].activity.toLowerCase() === cls;
+                {[
+                  { id: "standing", label: "STANDING" },
+                  { id: "walking", label: "WALKING" },
+                  { id: "running", label: "RUNNING" },
+                  { id: "sleeping", label: "SLEEPING" },
+                  { id: "using_laptop", label: "WATCHING / USING LAPTOP" },
+                  { id: "using_phone", label: "WATCHING / USING PHONE" },
+                  { id: "watching_tv", label: "WATCHING TV" },
+                  { id: "sitting", label: "SITTING" }
+                ].map((act) => {
+                  const isActive = people.length > 0 && people[0].activity.toLowerCase() === act.id;
                   return (
                     <span
-                      key={cls}
+                      key={act.id}
                       className={`text-[10px] px-2 py-0.5 rounded font-mono transition-colors ${
                         isActive
                           ? 'bg-cyan-500 text-slate-950 font-bold shadow-[0_0_8px_rgba(0,240,255,0.6)]'
                           : 'bg-slate-800 text-slate-400'
                       }`}
                     >
-                      {cls}
+                      {act.label}
                     </span>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* YOLO Hazard & Threat Detection Status */}
+            <div className="space-y-2 pt-2 border-t border-slate-800">
+              <span className="text-[10px] font-mono text-slate-500 block">YOLO THREAT & HAZARD DETECTION</span>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  {
+                    name: "FIRE",
+                    active: fireData.is_fire || objects.some((o: any) => o.label.toLowerCase() === 'fire'),
+                    color: "border-orange-500 text-orange-400 bg-orange-950/40"
+                  },
+                  {
+                    name: "GUN",
+                    active: objects.some((o: any) => o.label.toLowerCase() === 'gun'),
+                    color: "border-red-500 text-red-400 bg-red-950/40"
+                  },
+                  {
+                    name: "KNIFE",
+                    active: objects.some((o: any) => o.label.toLowerCase() === 'knife'),
+                    color: "border-red-500 text-red-400 bg-red-950/40"
+                  }
+                ].map((t) => (
+                  <div
+                    key={t.name}
+                    className={`p-1.5 rounded border text-center font-mono text-[10px] font-bold transition-all ${
+                      t.active
+                        ? `${t.color} animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]`
+                        : "border-slate-800 text-slate-500 bg-slate-950/60"
+                    }`}
+                  >
+                    <span>{t.active ? `● ${t.name}` : t.name}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
