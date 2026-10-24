@@ -119,6 +119,24 @@ class SentinelInferencePipeline:
             self.camera_fire_tracker[camera_id] = consec
             fire_info["continuous_fire_alert"] = (consec >= 3)
             fire_info["consecutive_fire_frames"] = consec
+
+            # Dispatch Critical Fire Incident Alert to AlertEngine
+            if fire_info.get("continuous_fire_alert", False):
+                fire_threat = {
+                    "threat_type": "FIRE_HAZARD",
+                    "severity": "CRITICAL",
+                    "activity": "FIRE HAZARD",
+                    "confidence": float(fire_info.get("fire_confidence", 85.0)),
+                    "details": f"Critical fire/flame hazard detected! Active flame verified across {consec} frames."
+                }
+                fire_alert = self.alert_engine.process_threat(
+                    camera_id=camera_id,
+                    camera_location=camera_location,
+                    threat_info=fire_threat,
+                    track_id=9999
+                )
+                if fire_alert:
+                    alerts_generated.append(fire_alert)
             
             # Format scene objects for API response
             for obj in scene_objects:

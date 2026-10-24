@@ -57,6 +57,8 @@ class YOLOv11Detector:
         self.model_file = model_file
         self.classes_map = {}
         self.frame_counter = 0
+        self.fire_detector = None
+        self.cached_fire_info = {"is_fire": False, "fire_confidence": 0.0, "no_fire_confidence": 100.0, "boxes": []}
         self._init_models()
 
     def _init_models(self):
@@ -90,6 +92,40 @@ class YOLOv11Detector:
                 self.hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
             except Exception:
                 self.hog = None
+
+        # Initialize High-Speed Fire & Flame Detector
+        try:
+            from .fire_detector import global_fire_detector
+            self.fire_detector = global_fire_detector
+            print("[YOLOv11 Detector] [OK] Successfully linked real-time Fire & Flame Detector!")
+        except Exception as e:
+            print(f"[YOLOv11 Detector] Fire detector import notice: {e}")
+            self.fire_detector = None
+
+    def _detect_fire(self, frame: np.ndarray, imgsz: int = 320) -> Dict[str, Any]:
+        """
+        Executes real-time flame and fire hazard recognition with YOLO bounding boxes.
+        """
+        if self.fire_detector is None or frame is None or frame.size == 0:
+            return {"is_fire": False, "fire_confidence": 0.0, "no_fire_confidence": 100.0, "boxes": []}
+        try:
+            h, w = frame.shape[:2]
+            is_fire, p_fire, p_no_fire, boxes = self.fire_detector.detect_boxes_and_classify(
+                frame,
+                yolo_conf=0.25,
+                imgsz=imgsz
+            )
+            return {
+                "is_fire": is_fire,
+                "fire_confidence": round(p_fire * 100.0, 1),
+                "no_fire_confidence": round(p_no_fire * 100.0, 1),
+                "boxes": boxes,
+                "frame_width": w,
+                "frame_height": h
+            }
+        except Exception as e:
+            print(f"[YOLOv11 Detector] Fire detection error: {e}")
+            return {"is_fire": False, "fire_confidence": 0.0, "no_fire_confidence": 100.0, "boxes": []}
 
     def detect(self, frame: np.ndarray, conf_threshold: Optional[float] = None, imgsz: int = 384) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
@@ -157,7 +193,12 @@ class YOLOv11Detector:
                 # Perform Spatial Person-Object Association (e.g. person holding phone or working on laptop)
                 self._associate_person_objects(people, objects)
 
-                return people, objects, {"is_fire": False, "fire_confidence": 0.0, "boxes": []}
+                # Real-Time Fire & Flame Recognition
+                if self.frame_counter % 2 == 0 or self.frame_counter <= 2 or self.cached_fire_info.get("is_fire", False):
+                    self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
+                fire_info = self.cached_fire_info
+
+                return people, objects, fire_info
 
             except Exception as e:
                 print(f"[YOLOv11 Detector] Inference error: {e}")
@@ -178,7 +219,11 @@ class YOLOv11Detector:
             except Exception:
                 pass
 
-        return people, objects, {"is_fire": False, "fire_confidence": 0.0, "boxes": []}
+        if self.frame_counter % 2 == 0 or self.cached_fire_info.get("is_fire", False):
+            self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
+        fire_info = self.cached_fire_info
+
+        return people, objects, fire_info
 
     def _associate_person_objects(self, people: List[Dict[str, Any]], objects: List[Dict[str, Any]]):
         """

@@ -104,16 +104,18 @@ class FireDetector:
     def detect_boxes_and_classify(
         self,
         frame_bgr: np.ndarray,
-        yolo_conf: float = 0.25
+        yolo_conf: float = 0.25,
+        imgsz: int = 320
     ) -> Tuple[bool, float, float, List[Dict[str, Any]]]:
         """
-        Runs accurate YOLO bounding box detection and PyTorch verification.
+        Runs high-speed accurate YOLO bounding box detection with high-luminance flame validation.
         Returns:
             (is_fire, fire_confidence, no_fire_confidence, boxes)
         """
         if frame_bgr is None or frame_bgr.size == 0:
             return False, 0.0, 1.0, []
 
+        h, w = frame_bgr.shape[:2]
         boxes = []
         fire_box_confidences = []
         smoke_box_confidences = []
@@ -121,7 +123,7 @@ class FireDetector:
         # 1. Run YOLO Bounding Box Detection if available
         if self.yolo_box_model is not None:
             try:
-                results = self.yolo_box_model(frame_bgr, conf=yolo_conf, verbose=False)
+                results = self.yolo_box_model(frame_bgr, imgsz=imgsz, conf=yolo_conf, verbose=False)
                 for r in results:
                     for b in r.boxes:
                         cls_id = int(b.cls[0])
@@ -136,10 +138,10 @@ class FireDetector:
                             smoke_box_confidences.append(conf)
 
                         boxes.append({
-                            "x1": x1,
-                            "y1": y1,
-                            "x2": x2,
-                            "y2": y2,
+                            "x1": max(0, x1),
+                            "y1": max(0, y1),
+                            "x2": min(w - 1, x2),
+                            "y2": min(h - 1, y2),
                             "width": max(1, x2 - x1),
                             "height": max(1, y2 - y1),
                             "label": label,
@@ -149,32 +151,78 @@ class FireDetector:
             except Exception as e:
                 print(f"[FireDetector] YOLO inference notice: {e}")
 
-        # 2. Run PyTorch Classifier as validation / backup
-        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        pil_img = Image.fromarray(frame_rgb)
-        tensor = self.transform(pil_img).unsqueeze(0).to(self.device)
+        # 2. Supplementary Glowing Flame Chrominance & Core Check (for candle, lighter, or small torch)
+        if not fire_box_confidences:
+            try:
+                ycrcb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2YCrCb)
+                y_c, cr_c, cb_c = cv2.split(ycrcb)
+                hsv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2HSV)
+                h_c, s_c, v_c = cv2.split(hsv)
 
-        with torch.no_grad():
-            logits = self.model(tensor)
-            probs = torch.softmax(logits, dim=1).cpu().numpy()[0]
+                # High-luminance glowing flame rule: emits genuine light, warm hue, high saturation & luma
+                flame_rule = (
+                    (y_c > cb_c) & (cr_c > cb_c) &
+                    (cr_c >= 140) & (cb_c <= 125) &
+                    (s_c >= 110) & (v_c >= 170) & (y_c >= 135) &
+                    ((h_c <= 28) | (h_c >= 172))
+                )
+                flame_mask = flame_rule.astype(np.uint8) * 255
+                contours, _ = cv2.findContours(flame_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for cnt in contours:
+                    area = cv2.contourArea(cnt)
+                    if 45 <= area <= (w * h * 0.40):
+                        bx, by, bw, bh = cv2.boundingRect(cnt)
+                        aspect = max(bw, bh) / max(1, min(bw, bh))
+                        if aspect <= 4.0:
+                            flame_conf = min(0.95, 0.70 + min(0.20, area / 1000.0))
+                            fire_box_confidences.append(flame_conf)
+                            boxes.append({
+                                "x1": max(0, bx),
+                                "y1": max(0, by),
+                                "x2": min(w - 1, bx + bw),
+                                "y2": min(h - 1, by + bh),
+                                "width": bw,
+                                "height": bh,
+                                "label": "Fire",
+                                "confidence": round(flame_conf * 100, 1),
+                                "is_fire": True
+                            })
+            except Exception:
+                pass
 
-        pytorch_no_fire = float(probs[0])
-        pytorch_fire = float(probs[1])
+        # 3. Fallback to MobileNetV3 Classifier only if no YOLO model is installed
+        if self.yolo_box_model is None and not fire_box_confidences:
+            try:
+                frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+                pil_img = Image.fromarray(frame_rgb)
+                tensor = self.transform(pil_img).unsqueeze(0).to(self.device)
+                with torch.no_grad():
+                    logits = self.model(tensor)
+                    probs = torch.softmax(logits, dim=1).cpu().numpy()[0]
+                pytorch_fire = float(probs[1])
+                if pytorch_fire >= 0.70:
+                    fire_box_confidences.append(pytorch_fire)
+                    boxes.append({
+                        "x1": int(w * 0.2), "y1": int(h * 0.2),
+                        "x2": int(w * 0.8), "y2": int(h * 0.8),
+                        "width": int(w * 0.6), "height": int(h * 0.6),
+                        "label": "Fire", "confidence": round(pytorch_fire * 100, 1),
+                        "is_fire": True
+                    })
+            except Exception:
+                pass
 
-        # Integrate YOLO boxes with classification confidence
+        # Integrate detections into probability scores
         if fire_box_confidences:
-            # We have confirmed fire bounding boxes!
             fire_prob = max(fire_box_confidences)
             is_fire = True
             no_fire_prob = 1.0 - fire_prob
         elif boxes and smoke_box_confidences:
-            # Smoke detected without active flame
             smoke_max = max(smoke_box_confidences)
             fire_prob = smoke_max * 0.35
             is_fire = False
             no_fire_prob = 1.0 - fire_prob
         else:
-            # No fire or smoke boxes detected: frame is clean normal!
             is_fire = False
             fire_prob = 0.0
             no_fire_prob = 1.0

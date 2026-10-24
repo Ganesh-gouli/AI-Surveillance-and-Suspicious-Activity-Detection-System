@@ -833,12 +833,12 @@ export const LiveWebcam: React.FC = () => {
 
             {/* Real-Time Fire & Smoke Bounding Box Overlay (Section 6 & 11) */}
             {isStreaming && fireMonitorActive && fireData.boxes && fireData.boxes.map((b: any, idx: number) => {
-              const scaleX = 1280 / 480;
-              const scaleY = 720 / 270;
-              const left = `${(b.x1 * scaleX / 1280) * 100}%`;
-              const top = `${(b.y1 * scaleY / 720) * 100}%`;
-              const width = `${(b.width * scaleX / 1280) * 100}%`;
-              const height = `${(b.height * scaleY / 720) * 100}%`;
+              const fw = (fireData as any).frame_width || 640;
+              const fh = (fireData as any).frame_height || 360;
+              const left = `${(b.x1 / fw) * 100}%`;
+              const top = `${(b.y1 / fh) * 100}%`;
+              const width = `${(b.width / fw) * 100}%`;
+              const height = `${(b.height / fh) * 100}%`;
               const isFireBox = b.is_fire;
 
               return (
