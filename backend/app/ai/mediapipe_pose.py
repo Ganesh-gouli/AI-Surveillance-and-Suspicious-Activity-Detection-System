@@ -269,8 +269,15 @@ class MediaPipePoseEngine:
             "spine_incline": round(spine_incline, 1)
         }
 
+        # Lower body visibility (Knees and Ankles)
+        has_ankles = (l_ankle_v > 0.35 or r_ankle_v > 0.35)
+        has_knees = (l_knee_v > 0.35 or r_knee_v > 0.35)
+        # Full body is confirmed when lower limbs (knees and ankles) are in frame
+        is_full_body = has_ankles or (has_knees and max_thigh_drop > crop_h * 0.25)
+
         # 5. Determine Pose / Activity
         # Case A: Lying Down / Sleeping (horizontal spine > 52° from vertical)
+        # Must have visible landmarks AND genuinely inclined spine — not just a wide bbox
         if spine_incline > 52.0 and min(l_sh_v, r_sh_v, l_hip_v, r_hip_v) > 0.35:
             conf = min(0.98, 0.85 + (spine_incline / 90.0) * 0.13)
             return {
@@ -279,16 +286,16 @@ class MediaPipePoseEngine:
                 "is_standing": False,
                 "is_sitting": False,
                 "is_lying": True,
+                "is_full_body": is_full_body,
                 "angles": angles_data,
                 "posture_details": f"Lying Down / Sleeping (Spine Incline: {spine_incline:.1f}° from vertical)"
             }
 
-        # Case B: Hip Biomechanics (Shoulder -> Hip -> Knee angle)
-        # When standing, torso and thighs are aligned: hip angle >= 135° and spine is upright (< 35°)
-        if avg_hip is not None and spine_incline < 35.0:
+        # Case B: Full Body Detected with Biomechanical Joints
+        if is_full_body and avg_hip is not None and spine_incline < 35.0:
             if avg_hip >= 135.0 or (avg_knee is not None and avg_knee >= 142.0):
                 conf = round(min(0.99, max(0.92, 0.90 + (avg_hip - 135.0) / 45.0 * 0.09)), 3)
-                details = f"Standing (Extended Hips: {avg_hip:.1f}°, Upright Spine: {spine_incline:.1f}°)"
+                details = f"Standing (Full Body, Extended Hips: {avg_hip:.1f}°, Upright Spine: {spine_incline:.1f}°)"
                 if avg_knee is not None:
                     details += f", Knees: {avg_knee:.1f}°"
                 return {
@@ -297,12 +304,13 @@ class MediaPipePoseEngine:
                     "is_standing": True,
                     "is_sitting": False,
                     "is_lying": False,
+                    "is_full_body": True,
                     "angles": angles_data,
                     "posture_details": details
                 }
             elif 60.0 <= avg_hip <= 126.0 and (avg_knee is None or avg_knee <= 138.0):
                 conf = round(min(0.98, max(0.91, 0.92 + (1.0 - abs(avg_hip - 95.0) / 45.0) * 0.06)), 3)
-                details = f"Sitting (Seated Hip Flexion: {avg_hip:.1f}°)"
+                details = f"Sitting (Full Body Seated, Hip Flexion: {avg_hip:.1f}°)"
                 if avg_knee is not None:
                     details += f", Bent Knees: {avg_knee:.1f}°"
                 return {
@@ -311,41 +319,24 @@ class MediaPipePoseEngine:
                     "is_standing": False,
                     "is_sitting": True,
                     "is_lying": False,
+                    "is_full_body": True,
                     "angles": angles_data,
                     "posture_details": details
                 }
 
-        # Case C: Lower body occluded / Desktop Webcam View (Upper body / Torso view)
+        # Case C: Half Visible Body (Upper Torso / Desktop Webcam / Lower Body Occluded)
+        # By strict rule: if the body is half visible, it represents SITTING.
         crop_aspect = float(crop_h) / max(1.0, float(crop_w))
-
-        # Check if wrists are resting at bottom of crop (typical desk/typing position)
-        wrists_at_bottom = False
-        if min(l_wrist_v, r_wrist_v) > 0.35:
-            avg_wrist_y = (l_wrist[1] + r_wrist[1]) / 2.0
-            if avg_wrist_y > crop_h * 0.70:
-                wrists_at_bottom = True
-
-        # In a webcam, an upright stance with crop_aspect >= 1.25 or high vertical thigh drop indicates standing
-        if (crop_aspect >= 1.25 or max_thigh_drop > crop_h * 0.22) and spine_incline < 25.0 and not wrists_at_bottom:
-            return {
-                "activity": "standing",
-                "confidence": 0.94,
-                "is_standing": True,
-                "is_sitting": False,
-                "is_lying": False,
-                "angles": angles_data,
-                "posture_details": f"Standing (Upright Stance, Aspect: {crop_aspect:.2f}, Spine: {spine_incline:.1f}°)"
-            }
-        else:
-            return {
-                "activity": "sitting",
-                "confidence": 0.92 if wrists_at_bottom else 0.88,
-                "is_standing": False,
-                "is_sitting": True,
-                "is_lying": False,
-                "angles": angles_data,
-                "posture_details": f"Sitting (Seated Posture, Aspect: {crop_aspect:.2f})"
-            }
+        return {
+            "activity": "sitting",
+            "confidence": 0.95,
+            "is_standing": False,
+            "is_sitting": True,
+            "is_lying": False,
+            "is_full_body": False,
+            "angles": angles_data,
+            "posture_details": f"Sitting (Half-Body Visible, Aspect: {crop_aspect:.2f})"
+        }
 
     def _fallback_result(self, activity: str, confidence: float, reason: str) -> Dict[str, Any]:
         return {
@@ -354,6 +345,7 @@ class MediaPipePoseEngine:
             "is_standing": (activity == "standing"),
             "is_sitting": (activity == "sitting"),
             "is_lying": (activity == "sleeping" or activity == "lying_down"),
+            "is_full_body": (activity == "standing"),
             "landmarks": [],
             "connections": SKELETON_CONNECTIONS,
             "angles": {

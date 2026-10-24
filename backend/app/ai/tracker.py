@@ -54,6 +54,12 @@ class TrackedObject:
         if len(self.activity_history) > 8:
             self.activity_history.pop(0)
 
+        # For newly initialized tracks (hits <= 2), immediately synchronize to detected activity
+        if self.hits <= 2 or not hasattr(self, 'activity') or self.activity is None:
+            self.activity = raw_activity
+            self.activity_confidence = raw_conf
+            return self.activity, self.activity_confidence
+
         # Accumulate confidence weights per activity in recent window
         votes: Dict[str, float] = {}
         for act, conf in self.activity_history:

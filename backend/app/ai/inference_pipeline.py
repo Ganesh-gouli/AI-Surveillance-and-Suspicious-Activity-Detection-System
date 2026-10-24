@@ -158,6 +158,7 @@ class SentinelInferencePipeline:
                 spine_incline = pose_angles.get("spine_incline")
 
                 is_standing_pose = pose_data.get("is_standing", False)
+                is_full_body = pose_data.get("is_full_body", None)
 
                 # Infer basic human activity via strict 4-rule hierarchy:
                 # Full body + stationary = standing, slow = walking, fast = running, half body = sitting
@@ -167,7 +168,8 @@ class SentinelInferencePipeline:
                     frame_dim=(w, h),
                     velocity=track.velocity,
                     spine_incline=spine_incline,
-                    is_standing_pose=is_standing_pose
+                    is_standing_pose=is_standing_pose,
+                    is_full_body=is_full_body
                 )
 
                 # MediaPipe sleeping override (recumbent spine detected by biomechanics)
