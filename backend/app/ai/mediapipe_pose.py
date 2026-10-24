@@ -250,9 +250,16 @@ class MediaPipePoseEngine:
         r_thigh_dy = r_knee[1] - r_hip[1]
         r_thigh_dx = abs(r_knee[0] - r_hip[0])
 
-        # Knee & Ankle Visibility Check
-        legs_visible = (l_knee_v > 0.40 and l_ankle_v > 0.40) or (r_knee_v > 0.40 and r_ankle_v > 0.40)
-        hips_visible = (l_hip_v > 0.40 or r_hip_v > 0.40)
+        # Knee & Hip Visibility Check (Ankles often out of frame in webcam)
+        valid_knees = [k for k in [l_knee_angle, r_knee_angle] if k is not None]
+        valid_hips = [h for h in [l_hip_angle, r_hip_angle] if h is not None]
+        avg_knee = sum(valid_knees) / len(valid_knees) if valid_knees else None
+        avg_hip = sum(valid_hips) / len(valid_hips) if valid_hips else None
+
+        # Thigh vertical drop: when standing, knees are far below hips
+        l_thigh_drop = (l_knee[1] - l_hip[1]) if (l_knee_v > 0.30 and l_hip_v > 0.30) else 0.0
+        r_thigh_drop = (r_knee[1] - r_hip[1]) if (r_knee_v > 0.30 and r_hip_v > 0.30) else 0.0
+        max_thigh_drop = max(l_thigh_drop, r_thigh_drop)
 
         angles_data = {
             "left_knee": round(l_knee_angle, 1) if l_knee_angle is not None else None,
@@ -263,8 +270,8 @@ class MediaPipePoseEngine:
         }
 
         # 5. Determine Pose / Activity
-        # Case A: Lying Down / Sleeping (horizontal spine > 55° from vertical)
-        if spine_incline > 55.0 and min(l_sh_v, r_sh_v, l_hip_v, r_hip_v) > 0.35:
+        # Case A: Lying Down / Sleeping (horizontal spine > 52° from vertical)
+        if spine_incline > 52.0 and min(l_sh_v, r_sh_v, l_hip_v, r_hip_v) > 0.35:
             conf = min(0.98, 0.85 + (spine_incline / 90.0) * 0.13)
             return {
                 "activity": "sleeping",
@@ -276,31 +283,14 @@ class MediaPipePoseEngine:
                 "posture_details": f"Lying Down / Sleeping (Spine Incline: {spine_incline:.1f}° from vertical)"
             }
 
-        # Case B: Lower body visible (Highest Precision Biomechanical Decision)
-        if legs_visible:
-            valid_knees = [k for k in [l_knee_angle, r_knee_angle] if k is not None]
-            valid_hips = [h for h in [l_hip_angle, r_hip_angle] if h is not None]
-
-            avg_knee = sum(valid_knees) / len(valid_knees) if valid_knees else 170.0
-            avg_hip = sum(valid_hips) / len(valid_hips) if valid_hips else 170.0
-
-            # Standing Criteria:
-            # - Knees are relatively straight: avg_knee >= 148° (or both >= 142°)
-            # - Hips are upright: avg_hip >= 142°
-            # - Thigh vertical drop is dominant
-            is_standing_knee = (avg_knee >= 148.0) or (len(valid_knees) == 2 and valid_knees[0] >= 142.0 and valid_knees[1] >= 142.0)
-            is_standing_hip = (avg_hip >= 140.0)
-
-            # Sitting Criteria:
-            # - Knees are bent significantly: avg_knee between 65° and 136°
-            # - Hips are flexed at seated angle: avg_hip between 65° and 138°
-            # - Thigh is horizontal or semi-horizontal
-            is_sitting_knee = (60.0 <= avg_knee <= 138.0)
-            is_sitting_hip = (60.0 <= avg_hip <= 140.0)
-
-            if is_standing_knee and is_standing_hip:
-                conf = round(min(0.99, max(0.92, 0.90 + (avg_knee - 148.0) / 40.0 * 0.09)), 3)
-                details = f"Standing (Straight Knees: {avg_knee:.1f}°, Hips: {avg_hip:.1f}°)"
+        # Case B: Hip Biomechanics (Shoulder -> Hip -> Knee angle)
+        # When standing, torso and thighs are aligned: hip angle >= 135° and spine is upright (< 35°)
+        if avg_hip is not None and spine_incline < 35.0:
+            if avg_hip >= 135.0 or (avg_knee is not None and avg_knee >= 142.0):
+                conf = round(min(0.99, max(0.92, 0.90 + (avg_hip - 135.0) / 45.0 * 0.09)), 3)
+                details = f"Standing (Extended Hips: {avg_hip:.1f}°, Upright Spine: {spine_incline:.1f}°)"
+                if avg_knee is not None:
+                    details += f", Knees: {avg_knee:.1f}°"
                 return {
                     "activity": "standing",
                     "confidence": conf,
@@ -310,9 +300,11 @@ class MediaPipePoseEngine:
                     "angles": angles_data,
                     "posture_details": details
                 }
-            elif is_sitting_knee or (is_sitting_hip and avg_knee < 145.0):
-                conf = round(min(0.98, max(0.91, 0.92 + (1.0 - abs(avg_knee - 95.0) / 45.0) * 0.06)), 3)
-                details = f"Sitting (Bent Knees: {avg_knee:.1f}°, Hips: {avg_hip:.1f}°)"
+            elif 60.0 <= avg_hip <= 126.0 and (avg_knee is None or avg_knee <= 138.0):
+                conf = round(min(0.98, max(0.91, 0.92 + (1.0 - abs(avg_hip - 95.0) / 45.0) * 0.06)), 3)
+                details = f"Sitting (Seated Hip Flexion: {avg_hip:.1f}°)"
+                if avg_knee is not None:
+                    details += f", Bent Knees: {avg_knee:.1f}°"
                 return {
                     "activity": "sitting",
                     "confidence": conf,
@@ -322,31 +314,8 @@ class MediaPipePoseEngine:
                     "angles": angles_data,
                     "posture_details": details
                 }
-            else:
-                # Borderline or transitional stance (e.g. leaning, walking, crouching)
-                if avg_knee >= 142.0:
-                    return {
-                        "activity": "standing",
-                        "confidence": 0.89,
-                        "is_standing": True,
-                        "is_sitting": False,
-                        "is_lying": False,
-                        "angles": angles_data,
-                        "posture_details": f"Standing / Leaning (Knees: {avg_knee:.1f}°)"
-                    }
-                else:
-                    return {
-                        "activity": "sitting",
-                        "confidence": 0.88,
-                        "is_standing": False,
-                        "is_sitting": True,
-                        "is_lying": False,
-                        "angles": angles_data,
-                        "posture_details": f"Sitting (Knees: {avg_knee:.1f}°)"
-                    }
 
-        # Case C: Lower body occluded / Desktop Webcam View (Upper body only)
-        # Check hands / elbows / torso position
+        # Case C: Lower body occluded / Desktop Webcam View (Upper body / Torso view)
         crop_aspect = float(crop_h) / max(1.0, float(crop_w))
 
         # Check if wrists are resting at bottom of crop (typical desk/typing position)
@@ -356,27 +325,26 @@ class MediaPipePoseEngine:
             if avg_wrist_y > crop_h * 0.70:
                 wrists_at_bottom = True
 
-        # If shoulders are close to top and bottom of crop cuts at chest/waist -> desktop webcam seated view
-        if crop_aspect < 1.60 or wrists_at_bottom:
-            conf = 0.93 if wrists_at_bottom else 0.89
-            return {
-                "activity": "sitting",
-                "confidence": conf,
-                "is_standing": False,
-                "is_sitting": True,
-                "is_lying": False,
-                "angles": angles_data,
-                "posture_details": f"Sitting (Upper Torso Webcam View, Aspect: {crop_aspect:.2f})"
-            }
-        else:
+        # In a webcam, an upright stance with crop_aspect >= 1.25 or high vertical thigh drop indicates standing
+        if (crop_aspect >= 1.25 or max_thigh_drop > crop_h * 0.22) and spine_incline < 25.0 and not wrists_at_bottom:
             return {
                 "activity": "standing",
-                "confidence": 0.89,
+                "confidence": 0.94,
                 "is_standing": True,
                 "is_sitting": False,
                 "is_lying": False,
                 "angles": angles_data,
-                "posture_details": f"Standing (Upright Torso, Aspect: {crop_aspect:.2f})"
+                "posture_details": f"Standing (Upright Stance, Aspect: {crop_aspect:.2f}, Spine: {spine_incline:.1f}°)"
+            }
+        else:
+            return {
+                "activity": "sitting",
+                "confidence": 0.92 if wrists_at_bottom else 0.88,
+                "is_standing": False,
+                "is_sitting": True,
+                "is_lying": False,
+                "angles": angles_data,
+                "posture_details": f"Sitting (Seated Posture, Aspect: {crop_aspect:.2f})"
             }
 
     def _fallback_result(self, activity: str, confidence: float, reason: str) -> Dict[str, Any]:

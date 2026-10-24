@@ -232,7 +232,8 @@ class YOLOv11Detector:
         interacting_objects: List[Dict[str, Any]],
         frame_dim: Tuple[int, int] = (1280, 720),
         velocity: float = 0.0,
-        spine_incline: Optional[float] = None
+        spine_incline: Optional[float] = None,
+        is_standing_pose: bool = False
     ) -> Tuple[str, float]:
         """
         Infers strictly normal everyday activities:
@@ -246,6 +247,7 @@ class YOLOv11Detector:
         - WATCHING_TV (watching TV screen)
         """
         x, y, w, h = bbox
+        frame_w, frame_h = frame_dim
         aspect_ratio = float(h) / max(1.0, float(w))
         labels = {obj["label"].lower() for obj in interacting_objects}
 
@@ -265,16 +267,19 @@ class YOLOv11Detector:
         if "tv" in labels:
             return "watching_tv", 0.94
 
-        # 3. Locomotion Velocity Analysis (Running vs Walking vs Standing)
+        # 3. Locomotion Velocity Analysis (Running vs Walking)
         if velocity >= 60.0:
             return "running", 0.95
         elif velocity >= 15.0:
             return "walking", 0.94
 
-        # 4. Upright Stance vs Seated
-        # Aspect ratio >= 1.65 indicates tall standing posture
-        if aspect_ratio >= 1.65:
-            return "standing", 0.94
+        # 4. Standing vs Seated Determination (Enhanced for Webcam & Full Body)
+        # - MediaPipe 3D Biomechanics detected extended hips / straight posture
+        # - Vertical aspect ratio >= 1.30
+        # - Head/torso elevated near top of camera view
+        head_near_top = (y < 0.22 * frame_h) and (h > 0.40 * frame_h)
+        if is_standing_pose or aspect_ratio >= 1.30 or head_near_top:
+            return "standing", 0.95
         else:
             return "sitting", 0.93
 
