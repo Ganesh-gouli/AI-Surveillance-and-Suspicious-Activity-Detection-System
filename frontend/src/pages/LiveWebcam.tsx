@@ -1240,38 +1240,34 @@ export const LiveWebcam: React.FC = () => {
               </div>
             </div>
 
-            {/* YOLO Hazard & Threat Detection Status */}
+            {/* Detected Home & Table Items (YOLOv11) */}
             <div className="space-y-2 pt-2 border-t border-slate-800">
-              <span className="text-[10px] font-mono text-slate-500 block">YOLO THREAT & HAZARD DETECTION</span>
-              <div className="grid grid-cols-3 gap-1.5">
+              <span className="text-[10px] font-mono text-slate-500 block">HOME & TABLE ITEMS (YOLOv11)</span>
+              <div className="grid grid-cols-4 gap-1.5">
                 {[
-                  {
-                    name: "FIRE",
-                    active: fireData.is_fire || objects.some((o: any) => o.label.toLowerCase() === 'fire'),
-                    color: "border-orange-500 text-orange-400 bg-orange-950/40"
-                  },
-                  {
-                    name: "GUN",
-                    active: objects.some((o: any) => o.label.toLowerCase() === 'gun'),
-                    color: "border-red-500 text-red-400 bg-red-950/40"
-                  },
-                  {
-                    name: "KNIFE",
-                    active: objects.some((o: any) => o.label.toLowerCase() === 'knife'),
-                    color: "border-red-500 text-red-400 bg-red-950/40"
-                  }
-                ].map((t) => (
-                  <div
-                    key={t.name}
-                    className={`p-1.5 rounded border text-center font-mono text-[10px] font-bold transition-all ${
-                      t.active
-                        ? `${t.color} animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]`
-                        : "border-slate-800 text-slate-500 bg-slate-950/60"
-                    }`}
-                  >
-                    <span>{t.active ? `● ${t.name}` : t.name}</span>
-                  </div>
-                ))}
+                  { name: "LAPTOP", key: "laptop" },
+                  { name: "PHONE", key: "cell phone" },
+                  { name: "TV", key: "tv" },
+                  { name: "TABLE", key: "table" },
+                  { name: "CHAIR", key: "chair" },
+                  { name: "CUP", key: "cup" },
+                  { name: "BOTTLE", key: "bottle" },
+                  { name: "BOOK", key: "book" }
+                ].map((item) => {
+                  const isDetected = objects.some((o: any) => o.label.toLowerCase() === item.key || o.label.toLowerCase().includes(item.key));
+                  return (
+                    <div
+                      key={item.name}
+                      className={`p-1.5 rounded border text-center font-mono text-[9px] font-bold transition-all ${
+                        isDetected
+                          ? "border-cyan-500 text-cyan-300 bg-cyan-950/50 shadow-[0_0_8px_rgba(0,240,255,0.4)]"
+                          : "border-slate-800 text-slate-500 bg-slate-950/60"
+                      }`}
+                    >
+                      <span>{isDetected ? `● ${item.name}` : item.name}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

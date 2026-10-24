@@ -189,43 +189,24 @@ class SentinelInferencePipeline:
                     frame_dim=(w, h)
                 )
 
-                # Safe Normal Postures Guard: Basic human postures must NEVER be flagged as suspicious
+                # Safe Normal Postures Guard: Basic human postures are benign and normal
                 is_safe_posture = final_activity.lower() in [
                     "sitting", "standing", "sleeping", "using_laptop", "using_phone",
                     "watching_tv", "walking", "running"
                 ]
-                has_weapon = any(
-                    obj.get("category") == "threat" or obj.get("label", "").lower() in ["gun", "knife"]
-                    for obj in track.interacting_objects
-                )
-                is_violent = "fight" in final_activity.lower() or "armed" in final_activity.lower()
+                is_violent = "fight" in final_activity.lower()
                 is_zone_breach = threat_info and threat_info.get("threat_type") == "UNAUTHORIZED_ENTRY"
 
-                # Direct escalation: if person has a weapon or armed_hazard, it MUST trigger CRITICAL threat even if behaviour_engine returned None!
-                is_suspicious = (threat_info is not None and (is_violent or has_weapon or is_zone_breach)) or has_weapon or is_violent
+                is_suspicious = (threat_info is not None and (is_violent or is_zone_breach)) or is_violent
                 threat_level = "NORMAL"
 
                 if is_suspicious:
-                    if threat_info:
-                        threat_level = threat_info.get("severity", "HIGH")
-                        threat_type = threat_info.get("threat_type", "SUSPICIOUS_BEHAVIOR")
-                    elif has_weapon or is_violent:
-                        threat_level = "CRITICAL"
-                        threat_type = "ARMED_HAZARD"
-                        threat_info = {
-                            "threat_type": threat_type,
-                            "severity": threat_level,
-                            "confidence": 0.97,
-                            "description": "Armed suspect / dangerous equipment detected in surveillance sector."
-                        }
-                    else:
-                        threat_level = "MEDIUM"
-                        threat_type = "SUSPICIOUS_BEHAVIOR"
-
+                    threat_level = threat_info.get("severity", "MEDIUM") if threat_info else "MEDIUM"
+                    threat_type = threat_info.get("threat_type", "SUSPICIOUS_BEHAVIOR") if threat_info else "SUSPICIOUS_BEHAVIOR"
                     track.is_threat = True
                     track.threat_type = threat_type
 
-                    # 5. Alert Dispatch
+                    # Alert Dispatch
                     alert = self.alert_engine.process_threat(
                         camera_id=camera_id,
                         camera_location=camera_location,

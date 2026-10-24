@@ -17,14 +17,10 @@ interface CameraCanvasOverlayProps {
 }
 
 const CATEGORY_COLORS: Record<string, { stroke: string; fill: string }> = {
-  electronics: { stroke: '#c084fc', fill: 'rgba(192, 132, 252, 0.15)' },
-  threat: { stroke: '#ef4444', fill: 'rgba(239, 68, 68, 0.28)' },
-  fire_hazard: { stroke: '#ff4500', fill: 'rgba(255, 69, 0, 0.25)' },
-  sustenance: { stroke: '#34d399', fill: 'rgba(52, 211, 153, 0.15)' },
-  mobility: { stroke: '#38bdf8', fill: 'rgba(56, 189, 248, 0.15)' },
-  luggage: { stroke: '#fbbf24', fill: 'rgba(251, 191, 36, 0.15)' },
-  furniture: { stroke: '#94a3b8', fill: 'rgba(148, 163, 184, 0.12)' },
-  sports: { stroke: '#2dd4bf', fill: 'rgba(45, 212, 191, 0.15)' },
+  electronics: { stroke: '#38bdf8', fill: 'rgba(56, 189, 248, 0.15)' }, // Laptop, Phone, TV, Remote
+  furniture: { stroke: '#a78bfa', fill: 'rgba(167, 139, 250, 0.15)' },   // Table, Chair, Couch
+  tableware: { stroke: '#34d399', fill: 'rgba(52, 211, 153, 0.15)' },   // Cup, Bottle
+  living: { stroke: '#fbbf24', fill: 'rgba(251, 191, 36, 0.15)' },      // Book, Clock
   general_object: { stroke: '#818cf8', fill: 'rgba(129, 140, 248, 0.15)' }
 };
 
@@ -212,18 +208,13 @@ export const CameraCanvasOverlay: React.FC<CameraCanvasOverlayProps> = ({
           // Only actual dangerous activities (fighting, weapons) turn red.
           const upperActivity = p.activity.toUpperCase();
           const isSafeActivity = SAFE_ACTIVITIES.has(upperActivity);
-
-          const hasWeapon = (p.interacting_objects || []).some(
-            (o) => o.category === 'threat' || ['knife', 'gun', 'weapon'].includes(o.label.toLowerCase())
-          );
-          const isFighting = upperActivity.includes('FIGHT');
-
-          const isThreat = !isSafeActivity && (isFighting || hasWeapon || p.threat_level === 'CRITICAL');
+          // Normal home activities are always benign and calm
+          const isThreat = !isSafeActivity && p.threat_level === 'CRITICAL';
 
           // Palette selection based on posture / basic activity
           let mainColor = '#00f0ff'; // Vibrant Cyber Cyan default
           if (isThreat) {
-            mainColor = '#ef4444'; // Red ONLY on true dangerous threats (gun, knife, fight)
+            mainColor = '#ef4444';
           } else if (upperActivity === 'STANDING') {
             mainColor = '#10b981'; // Calm Emerald for Standing
           } else if (upperActivity === 'WALKING') {
@@ -416,9 +407,9 @@ export const CameraCanvasOverlay: React.FC<CameraCanvasOverlayProps> = ({
               ctx.fillText(fullLabel, x + 7, tagY + 14);
             }
 
-            // E. ONLY for true dangerous threats, render warning banner
+            // E. Warning banner if critical threat
             if (isThreat && highlightThreats) {
-              const warningText = isFighting ? '⚠ CRITICAL: VIOLENCE DETECTED' : '⚠ WEAPON DETECTED';
+              const warningText = '⚠ HIGH RISK ALERT';
               ctx.font = 'bold 11px JetBrains Mono, monospace';
               const warnWidth = ctx.measureText(warningText).width;
               
