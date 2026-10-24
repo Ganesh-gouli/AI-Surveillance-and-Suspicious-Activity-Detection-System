@@ -142,7 +142,7 @@ class YOLOv11Detector:
             h, w = frame.shape[:2]
             is_fire, p_fire, p_no_fire, boxes = self.fire_detector.detect_boxes_and_classify(
                 frame,
-                yolo_conf=0.25,
+                yolo_conf=0.35,
                 imgsz=imgsz
             )
             return {
@@ -223,7 +223,7 @@ class YOLOv11Detector:
                 # Run Neural Gun & Firearm Detection
                 if self.weapon_model is not None:
                     try:
-                        w_res = self.weapon_model(frame, imgsz=min(imgsz, 416), conf=0.25, verbose=False)
+                        w_res = self.weapon_model(frame, imgsz=min(imgsz, 416), conf=0.55, verbose=False)
                         for r in w_res:
                             for b in r.boxes:
                                 cls_id = int(b.cls[0])
@@ -234,6 +234,20 @@ class YOLOv11Detector:
                                 wby = max(0, wy1)
                                 wbw = min(w - wbx, max(1, wx2 - wx1))
                                 wbh = min(h - wby, max(1, wy2 - wy1))
+
+                                # Filter extreme degenerate slit lines (e.g. razor-thin shelf line across wall)
+                                if (wbw / max(1, wbh) > 12.0) or (wbh / max(1, wbw) > 12.0) or (wbw * wbh < 100):
+                                    continue
+
+                                # Physical realism check: A handheld weapon cannot swallow/enclose an entire human body
+                                encloses_person = False
+                                for p in people:
+                                    px, py, pw, ph = p["bbox"]
+                                    if wbx <= px and (wbx + wbw) >= (px + pw) and wby <= py and (wby + wbh) >= (py + ph):
+                                        encloses_person = True
+                                        break
+                                if encloses_person:
+                                    continue
 
                                 norm_label = "gun" if any(k in w_raw for k in ["gun", "handgun", "pistol", "rifle", "shotgun", "smg", "sniper", "firearm"]) else w_raw
                                 objects.append({

@@ -104,7 +104,7 @@ class FireDetector:
     def detect_boxes_and_classify(
         self,
         frame_bgr: np.ndarray,
-        yolo_conf: float = 0.25,
+        yolo_conf: float = 0.35,
         imgsz: int = 320
     ) -> Tuple[bool, float, float, List[Dict[str, Any]]]:
         """
@@ -151,44 +151,8 @@ class FireDetector:
             except Exception as e:
                 print(f"[FireDetector] YOLO inference notice: {e}")
 
-        # 2. Supplementary Glowing Flame Chrominance & Core Check (for candle, lighter, or small torch)
-        if not fire_box_confidences:
-            try:
-                ycrcb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2YCrCb)
-                y_c, cr_c, cb_c = cv2.split(ycrcb)
-                hsv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2HSV)
-                h_c, s_c, v_c = cv2.split(hsv)
-
-                # High-luminance glowing flame rule: emits genuine light, warm hue, high saturation & luma
-                flame_rule = (
-                    (y_c > cb_c) & (cr_c > cb_c) &
-                    (cr_c >= 140) & (cb_c <= 125) &
-                    (s_c >= 110) & (v_c >= 170) & (y_c >= 135) &
-                    ((h_c <= 28) | (h_c >= 172))
-                )
-                flame_mask = flame_rule.astype(np.uint8) * 255
-                contours, _ = cv2.findContours(flame_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                for cnt in contours:
-                    area = cv2.contourArea(cnt)
-                    if 45 <= area <= (w * h * 0.40):
-                        bx, by, bw, bh = cv2.boundingRect(cnt)
-                        aspect = max(bw, bh) / max(1, min(bw, bh))
-                        if aspect <= 4.0:
-                            flame_conf = min(0.95, 0.70 + min(0.20, area / 1000.0))
-                            fire_box_confidences.append(flame_conf)
-                            boxes.append({
-                                "x1": max(0, bx),
-                                "y1": max(0, by),
-                                "x2": min(w - 1, bx + bw),
-                                "y2": min(h - 1, by + bh),
-                                "width": bw,
-                                "height": bh,
-                                "label": "Fire",
-                                "confidence": round(flame_conf * 100, 1),
-                                "is_fire": True
-                            })
-            except Exception:
-                pass
+        # 2. Supplementary check: If YOLO is not available or inconclusive, only use deep-learning MobileNetV3
+        # Standalone color heuristics are strictly avoided to prevent false positives on warm indoor walls, lighting, or skin tones.
 
         # 3. Fallback to MobileNetV3 Classifier only if no YOLO model is installed
         if self.yolo_box_model is None and not fire_box_confidences:
