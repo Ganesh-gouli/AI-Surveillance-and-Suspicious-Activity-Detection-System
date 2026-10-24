@@ -223,7 +223,7 @@ class YOLOv11Detector:
                 # Run Neural Gun & Firearm Detection
                 if self.weapon_model is not None:
                     try:
-                        w_res = self.weapon_model(frame, imgsz=min(imgsz, 416), conf=0.55, verbose=False)
+                        w_res = self.weapon_model(frame, imgsz=640, conf=0.25, verbose=False)
                         for r in w_res:
                             for b in r.boxes:
                                 cls_id = int(b.cls[0])
@@ -239,17 +239,11 @@ class YOLOv11Detector:
                                 if (wbw / max(1, wbh) > 12.0) or (wbh / max(1, wbw) > 12.0) or (wbw * wbh < 100):
                                     continue
 
-                                # Physical realism check: A handheld weapon cannot swallow/enclose an entire human body
-                                encloses_person = False
-                                for p in people:
-                                    px, py, pw, ph = p["bbox"]
-                                    if wbx <= px and (wbx + wbw) >= (px + pw) and wby <= py and (wby + wbh) >= (py + ph):
-                                        encloses_person = True
-                                        break
-                                if encloses_person:
+                                # Specifically filter whole-room architectural background artifacts (ceiling shelves, mantles)
+                                if (wbw >= w * 0.70 and wbh >= h * 0.70) and w_conf < 0.60:
                                     continue
 
-                                norm_label = "gun" if any(k in w_raw for k in ["gun", "handgun", "pistol", "rifle", "shotgun", "smg", "sniper", "firearm"]) else w_raw
+                                norm_label = "gun" if any(k in w_raw for k in ["gun", "handgun", "pistol", "rifle", "shotgun", "smg", "sniper", "firearm", "bazooka", "grenade"]) else w_raw
                                 objects.append({
                                     "label": norm_label,
                                     "category": "weapon",
@@ -264,8 +258,7 @@ class YOLOv11Detector:
                 self._associate_person_objects(people, objects)
 
                 # Real-Time Fire & Flame Recognition
-                if self.frame_counter % 2 == 0 or self.frame_counter <= 2 or self.cached_fire_info.get("is_fire", False):
-                    self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
+                self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
                 fire_info = self.cached_fire_info
 
                 return people, objects, fire_info
