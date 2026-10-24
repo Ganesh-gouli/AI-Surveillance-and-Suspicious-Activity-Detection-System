@@ -8,7 +8,8 @@ import {
   Layers,
   Sparkles,
   Box,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Flame
 } from 'lucide-react';
 import { CameraCanvasOverlay } from '../components/video/CameraCanvasOverlay';
 import { TrackedPerson, DetectedObject } from '../types';
@@ -22,6 +23,25 @@ export const ImageAnalysis: React.FC = () => {
   const [imageDimensions, setImageDimensions] = useState({ width: 1280, height: 720 });
   const [detections, setDetections] = useState<TrackedPerson[]>([]);
   const [sceneObjects, setSceneObjects] = useState<DetectedObject[]>([]);
+  const [fireData, setFireData] = useState<{
+    is_fire: boolean;
+    fire_confidence: number;
+    boxes: Array<{
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      width: number;
+      height: number;
+      label: string;
+      confidence: number;
+      is_fire: boolean;
+    }>;
+  }>({
+    is_fire: false,
+    fire_confidence: 0,
+    boxes: []
+  });
   const [showObjectsOverlay, setShowObjectsOverlay] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -47,6 +67,7 @@ export const ImageAnalysis: React.FC = () => {
           setImageDimensions({ width: data.width || 1280, height: data.height || 720 });
           setDetections(data.detections || []);
           setSceneObjects(data.objects || []);
+          setFireData(data.fire || { is_fire: false, fire_confidence: 0, boxes: [] });
         }
       } catch (err) {
         console.error("Error analyzing image:", err);
@@ -62,7 +83,8 @@ export const ImageAnalysis: React.FC = () => {
       people_count: detections.length,
       people: detections,
       objects_count: sceneObjects.length,
-      objects: sceneObjects
+      objects: sceneObjects,
+      fire: fireData
     };
     navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
     setCopied(true);
@@ -82,7 +104,7 @@ export const ImageAnalysis: React.FC = () => {
               REAL IMAGE AI FORENSIC & OBJECT-ACTIVITY ANALYZER
             </h1>
             <p className="text-xs text-slate-400 font-mono">
-              <span className="text-purple-400 font-bold">YOLOv11 Multi-Object Detection</span> • Person-Object Interaction • <span className="text-cyan-400 font-bold">best_human_activity_v2.keras</span>
+              <span className="text-purple-400 font-bold">YOLOv11 Multi-Object Detection</span> • Person-Object Interaction • <span className="text-cyan-400 font-bold">YOLOv8 Fire Detection</span>
             </p>
           </div>
         </div>
@@ -103,7 +125,13 @@ export const ImageAnalysis: React.FC = () => {
 
           {selectedImage && (
             <button
-              onClick={() => { setSelectedImage(null); setImageFile(null); setDetections([]); setSceneObjects([]); }}
+              onClick={() => {
+                setSelectedImage(null);
+                setImageFile(null);
+                setDetections([]);
+                setSceneObjects([]);
+                setFireData({ is_fire: false, fire_confidence: 0, boxes: [] });
+              }}
               className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono"
             >
               UPLOAD ANOTHER IMAGE
@@ -159,6 +187,64 @@ export const ImageAnalysis: React.FC = () => {
                 showActivityLabels={true}
                 showObjects={showObjectsOverlay}
               />
+
+              {/* Real-Time Fire & Flame Bounding Box Overlay */}
+              {fireData.boxes && fireData.boxes.map((b: any, idx: number) => {
+                const fw = imageDimensions.width || 1280;
+                const fh = imageDimensions.height || 720;
+                const left = `${(b.x1 / fw) * 100}%`;
+                const top = `${(b.y1 / fh) * 100}%`;
+                const width = `${(b.width / fw) * 100}%`;
+                const height = `${(b.height / fh) * 100}%`;
+                const isFireBox = b.is_fire;
+
+                return (
+                  <div
+                    key={`fire-box-${idx}`}
+                    style={{ left, top, width, height }}
+                    className={`absolute pointer-events-none border-2 z-20 ${
+                      isFireBox
+                        ? 'border-red-500 bg-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-pulse'
+                        : 'border-yellow-400 bg-yellow-400/15'
+                    }`}
+                  >
+                    <div className={`absolute -top-6 left-0 px-2 py-0.5 rounded text-[10px] font-mono font-bold text-white shadow-md flex items-center space-x-1 whitespace-nowrap ${
+                      isFireBox ? 'bg-red-600 border border-yellow-400' : 'bg-slate-800 border border-yellow-500'
+                    }`}>
+                      <Flame className="w-3 h-3 text-yellow-300" />
+                      <span>{b.label.toUpperCase()}: {b.confidence}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Fire Hazard Alert Status Banner */}
+            <div className={`p-4 rounded-xl border font-mono text-xs transition-all ${
+              fireData.is_fire
+                ? 'bg-red-950/60 border-red-500 shadow-[0_0_25px_rgba(239,68,68,0.4)]'
+                : 'bg-slate-900/40 border-slate-800'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <Flame className={`w-5 h-5 ${fireData.is_fire ? 'text-red-400 animate-pulse' : 'text-slate-500'}`} />
+                  <div>
+                    <span className={`font-bold block ${fireData.is_fire ? 'text-red-300 text-sm' : 'text-slate-400'}`}>
+                      {fireData.is_fire ? '🔥 ACTIVE FIRE DETECTED' : 'FIRE MONITOR: SCENE CLEAR'}
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      {fireData.is_fire
+                        ? `Neural detector identified ${fireData.boxes.length} active flame zone(s)`
+                        : 'Zero thermal or combustion signatures detected in frame'}
+                    </span>
+                  </div>
+                </div>
+                {fireData.is_fire && (
+                  <span className="px-3 py-1 rounded bg-red-600 text-white font-bold text-xs shadow-[0_0_12px_rgba(239,68,68,0.6)]">
+                    CONFIDENCE: {fireData.fire_confidence}%
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Scene Objects Summary Bar */}
