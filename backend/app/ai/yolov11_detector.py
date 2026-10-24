@@ -236,28 +236,28 @@ class YOLOv11Detector:
         is_standing_pose: bool = False
     ) -> Tuple[str, float]:
         """
-        Infers strictly normal everyday activities:
-        - SITTING
-        - STANDING
-        - WALKING
-        - RUNNING
-        - SLEEPING
-        - USING_LAPTOP (watching or using laptop)
-        - USING_PHONE (watching or using phone)
-        - WATCHING_TV (watching TV screen)
+        Infers strictly normal everyday activities using the user's explicit 4 rules:
+
+        RULE 1:  Full body detected (stationary / low velocity)  → STANDING
+        RULE 2:  Body moving slowly  (velocity >= 15 px/frame)   → WALKING
+        RULE 3:  Body moving at speed (velocity >= 60 px/frame)  → RUNNING
+        RULE 4:  Half visible body  (upper torso / webcam view)  → SITTING
+
+        Device-interaction overrides (laptop, phone, TV) still apply when
+        objects are spatially associated with the person.
         """
         x, y, w, h = bbox
         frame_w, frame_h = frame_dim
         aspect_ratio = float(h) / max(1.0, float(w))
         labels = {obj["label"].lower() for obj in interacting_objects}
 
-        # 1. Sleeping Detection (Horizontal posture or recumbent)
+        # ── 0. Sleeping Detection (horizontal body / recumbent) ──
         is_recumbent = (w > 1.25 * h) or (aspect_ratio < 0.85)
         is_inclined_sleep = (spine_incline is not None and spine_incline > 52.0)
         if is_recumbent or is_inclined_sleep:
             return "sleeping", 0.96
 
-        # 2. Device Usage / Watching Overrides
+        # ── 1. Device-Interaction Overrides ──
         if any(l in labels for l in ["laptop", "keyboard", "mouse"]):
             return "using_laptop", 0.96
 
@@ -267,21 +267,35 @@ class YOLOv11Detector:
         if "tv" in labels:
             return "watching_tv", 0.94
 
-        # 3. Locomotion Velocity Analysis (Running vs Walking)
-        if velocity >= 60.0:
-            return "running", 0.95
-        elif velocity >= 15.0:
-            return "walking", 0.94
+        # ── 2. Determine body visibility: FULL vs HALF ──
+        # "Full body" means the bounding box is tall enough to include legs:
+        #   • MediaPipe 3D confirmed standing posture, OR
+        #   • Vertical aspect ratio ≥ 1.50  (tall rectangle = full body), OR
+        #   • Person's head is near the top AND their bbox covers >50% of frame height
+        #   • Person's bbox extends into bottom 15% of frame (feet visible)
+        head_near_top = (y < 0.22 * frame_h) and (h > 0.50 * frame_h)
+        feet_near_bottom = (y + h) > (frame_h * 0.85)
+        full_body_detected = (
+            is_standing_pose
+            or aspect_ratio >= 1.50
+            or head_near_top
+            or (feet_near_bottom and aspect_ratio >= 1.20)
+        )
 
-        # 4. Standing vs Seated Determination (Enhanced for Webcam & Full Body)
-        # - MediaPipe 3D Biomechanics detected extended hips / straight posture
-        # - Vertical aspect ratio >= 1.30
-        # - Head/torso elevated near top of camera view
-        head_near_top = (y < 0.22 * frame_h) and (h > 0.40 * frame_h)
-        if is_standing_pose or aspect_ratio >= 1.30 or head_near_top:
-            return "standing", 0.95
+        # ── 3. Apply the strict 4-rule hierarchy ──
+        if full_body_detected:
+            # RULE 3: Fast movement → RUNNING
+            if velocity >= 60.0:
+                return "running", 0.96
+            # RULE 2: Slow movement → WALKING
+            if velocity >= 15.0:
+                return "walking", 0.95
+            # RULE 1: Stationary full body → STANDING
+            return "standing", 0.96
         else:
-            return "sitting", 0.93
+            # RULE 4: Half visible body (upper torso / webcam crop) → SITTING
+            # Even with some velocity (head sway etc.) half-body stays SITTING
+            return "sitting", 0.94
 
     def infer_activity_from_objects(self, interacting_objects: List[Dict[str, Any]]) -> Optional[Tuple[str, float]]:
         """

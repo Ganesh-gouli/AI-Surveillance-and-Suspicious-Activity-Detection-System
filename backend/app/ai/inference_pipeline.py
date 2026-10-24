@@ -159,7 +159,8 @@ class SentinelInferencePipeline:
 
                 is_standing_pose = pose_data.get("is_standing", False)
 
-                # Infer basic human activity: standing, walking, running, sleeping, using laptop, using phone, watching tv, sitting
+                # Infer basic human activity via strict 4-rule hierarchy:
+                # Full body + stationary = standing, slow = walking, fast = running, half body = sitting
                 raw_activity, raw_conf = self.detector.infer_posture_and_activity(
                     bbox=track.bbox,
                     interacting_objects=track.interacting_objects,
@@ -169,21 +170,10 @@ class SentinelInferencePipeline:
                     is_standing_pose=is_standing_pose
                 )
 
+                # MediaPipe sleeping override (recumbent spine detected by biomechanics)
                 if pose_act == "sleeping":
                     raw_activity = "sleeping"
-                    raw_conf = pose_conf
-                elif is_standing_pose or pose_act == "standing":
-                    has_device = any(obj["label"] in ["laptop", "cell phone"] for obj in track.interacting_objects)
-                    if not has_device:
-                        if track.velocity >= 60.0:
-                            raw_activity = "running"
-                            raw_conf = 0.95
-                        elif track.velocity >= 15.0:
-                            raw_activity = "walking"
-                            raw_conf = 0.94
-                        else:
-                            raw_activity = "standing"
-                            raw_conf = max(raw_conf, pose_conf)
+                    raw_conf = max(raw_conf, pose_conf)
 
                 # Temporal smoothing over rolling window: eliminates flicker and guarantees 100% stable accuracy
                 final_activity, final_conf = track.update_activity(raw_activity, raw_conf)
