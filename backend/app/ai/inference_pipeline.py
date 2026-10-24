@@ -150,8 +150,29 @@ class SentinelInferencePipeline:
                         "y": float(oy),
                         "width": float(ow),
                         "height": float(oh)
-                    }
+                    },
+                    "is_weapon": obj.get("is_weapon", False)
                 })
+
+            # Standalone Firearm / Gun Hazard Alert Dispatch
+            weapon_objs = [o for o in scene_objects if o.get("is_weapon") or o.get("category") == "weapon"]
+            if weapon_objs:
+                top_w = max(weapon_objs, key=lambda x: x["confidence"])
+                gun_threat = {
+                    "threat_type": "FIREARM_DETECTED",
+                    "severity": "CRITICAL",
+                    "activity": f"VISIBLE {top_w['label'].upper()}",
+                    "confidence": round(top_w["confidence"] * 100.0, 1),
+                    "details": f"Critical security alert! Active {top_w['label']} firearm recognized in surveillance scene."
+                }
+                gun_alert = self.alert_engine.process_threat(
+                    camera_id=camera_id,
+                    camera_location=camera_location,
+                    threat_info=gun_threat,
+                    track_id=8888
+                )
+                if gun_alert:
+                    alerts_generated.append(gun_alert)
 
             # 2. Multi-Person Tracking
             tracked_objects = self.tracker.update(person_detections)
@@ -232,13 +253,28 @@ class SentinelInferencePipeline:
                 ]
                 is_violent = "fight" in final_activity.lower()
                 is_zone_breach = threat_info and threat_info.get("threat_type") == "UNAUTHORIZED_ENTRY"
+                is_armed = any(
+                    obj.get("is_weapon") or obj.get("category") == "weapon" or "gun" in str(obj.get("label", "")).lower()
+                    for obj in track.interacting_objects
+                )
 
-                is_suspicious = (threat_info is not None and (is_violent or is_zone_breach)) or is_violent
+                is_suspicious = (threat_info is not None and (is_violent or is_zone_breach)) or is_violent or is_armed
                 threat_level = "NORMAL"
 
                 if is_suspicious:
-                    threat_level = threat_info.get("severity", "MEDIUM") if threat_info else "MEDIUM"
-                    threat_type = threat_info.get("threat_type", "SUSPICIOUS_BEHAVIOR") if threat_info else "SUSPICIOUS_BEHAVIOR"
+                    if is_armed:
+                        threat_level = "CRITICAL"
+                        threat_type = "ARMED_PERSON"
+                        threat_info = {
+                            "threat_type": "ARMED_PERSON",
+                            "severity": "CRITICAL",
+                            "activity": "ARMED WITH FIREARM",
+                            "confidence": 96.0,
+                            "details": f"Individual #{track.track_id} is armed with a visible firearm in active camera zone."
+                        }
+                    else:
+                        threat_level = threat_info.get("severity", "MEDIUM") if threat_info else "MEDIUM"
+                        threat_type = threat_info.get("threat_type", "SUSPICIOUS_BEHAVIOR") if threat_info else "SUSPICIOUS_BEHAVIOR"
                     track.is_threat = True
                     track.threat_type = threat_type
 

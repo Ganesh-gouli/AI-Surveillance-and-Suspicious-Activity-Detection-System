@@ -17,6 +17,7 @@ interface CameraCanvasOverlayProps {
 }
 
 const CATEGORY_COLORS: Record<string, { stroke: string; fill: string }> = {
+  weapon: { stroke: '#ef4444', fill: 'rgba(239, 68, 68, 0.25)' },       // Gun, Handgun, Firearm, Knife
   electronics: { stroke: '#38bdf8', fill: 'rgba(56, 189, 248, 0.15)' }, // Laptop, Phone, TV, Remote
   furniture: { stroke: '#a78bfa', fill: 'rgba(167, 139, 250, 0.15)' },   // Table, Chair, Couch
   tableware: { stroke: '#34d399', fill: 'rgba(52, 211, 153, 0.15)' },   // Cup, Bottle

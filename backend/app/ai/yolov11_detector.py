@@ -13,6 +13,17 @@ except Exception:
 
 # Whitelisted Normal Household & Table Objects
 OBJECT_CATEGORIES = {
+    # Firearms & Weapons
+    "gun": "weapon",
+    "handgun": "weapon",
+    "pistol": "weapon",
+    "rifle": "weapon",
+    "shotgun": "weapon",
+    "automatic rifle": "weapon",
+    "smg": "weapon",
+    "sniper": "weapon",
+    "firearm": "weapon",
+
     # Electronics & Devices
     "laptop": "electronics",
     "cell phone": "electronics",
@@ -102,6 +113,25 @@ class YOLOv11Detector:
             print(f"[YOLOv11 Detector] Fire detector import notice: {e}")
             self.fire_detector = None
 
+        # Initialize Neural Gun & Firearm Detector
+        try:
+            from ultralytics import YOLO
+            weapon_model_candidates = [
+                os.path.join(root_dir, "models", "best_weapon_detector.pt"),
+                os.path.join(root_dir, "models", "best_shooting_weapon_detector.pt"),
+                "models/best_weapon_detector.pt"
+            ]
+            self.weapon_model = None
+            for w_cand in weapon_model_candidates:
+                if os.path.exists(w_cand):
+                    print(f"[YOLOv11 Detector] Initializing Neural Gun Detector from {w_cand}...")
+                    self.weapon_model = YOLO(w_cand)
+                    print(f"[YOLOv11 Detector] [OK] Gun detector ready with classes: {self.weapon_model.names}")
+                    break
+        except Exception as e:
+            print(f"[YOLOv11 Detector] Gun detector load notice: {e}")
+            self.weapon_model = None
+
     def _detect_fire(self, frame: np.ndarray, imgsz: int = 320) -> Dict[str, Any]:
         """
         Executes real-time flame and fire hazard recognition with YOLO bounding boxes.
@@ -190,7 +220,33 @@ class YOLOv11Detector:
                                     "bbox": [bx, by, bw, bh]
                                 })
 
-                # Perform Spatial Person-Object Association (e.g. person holding phone or working on laptop)
+                # Run Neural Gun & Firearm Detection
+                if self.weapon_model is not None:
+                    try:
+                        w_res = self.weapon_model(frame, imgsz=min(imgsz, 416), conf=0.25, verbose=False)
+                        for r in w_res:
+                            for b in r.boxes:
+                                cls_id = int(b.cls[0])
+                                w_raw = self.weapon_model.names.get(cls_id, "Gun").lower()
+                                w_conf = float(b.conf[0])
+                                wx1, wy1, wx2, wy2 = map(int, b.xyxy[0].tolist())
+                                wbx = max(0, wx1)
+                                wby = max(0, wy1)
+                                wbw = min(w - wbx, max(1, wx2 - wx1))
+                                wbh = min(h - wby, max(1, wy2 - wy1))
+
+                                norm_label = "gun" if any(k in w_raw for k in ["gun", "handgun", "pistol", "rifle", "shotgun", "smg", "sniper", "firearm"]) else w_raw
+                                objects.append({
+                                    "label": norm_label,
+                                    "category": "weapon",
+                                    "confidence": round(w_conf, 3),
+                                    "bbox": [wbx, wby, wbw, wbh],
+                                    "is_weapon": True
+                                })
+                    except Exception as e:
+                        print(f"[YOLOv11 Detector] Weapon inference notice: {e}")
+
+                # Perform Spatial Person-Object Association (e.g. person holding phone, laptop, or gun)
                 self._associate_person_objects(people, objects)
 
                 # Real-Time Fire & Flame Recognition

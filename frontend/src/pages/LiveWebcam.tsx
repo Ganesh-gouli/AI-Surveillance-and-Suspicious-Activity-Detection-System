@@ -328,6 +328,12 @@ export const LiveWebcam: React.FC = () => {
               }
             }
 
+            // Real-Time Firearm / Gun Hazard Siren Trigger
+            const hasFirearm = scaledObjects.some((o: any) => o.category === 'weapon' || o.label === 'gun');
+            if (hasFirearm && soundEnabled) {
+              audioService.playCriticalAlarm();
+            }
+
             const elapsed = performance.now() - t0;
             setFps(Math.round(1000 / Math.max(1, elapsed)));
             setLatency(Math.round(elapsed));
@@ -899,6 +905,12 @@ export const LiveWebcam: React.FC = () => {
                   }`}>
                     <Flame className="w-3 h-3" />
                     <span>{fireData.is_fire ? `FIRE ${fireData.fire_confidence}%` : 'NO FIRE'}</span>
+                  </span>
+                )}
+                {objects.some(o => o.category === 'weapon' || o.label === 'gun') && (
+                  <span className="px-2.5 py-1 rounded bg-red-600 text-white font-mono font-bold text-xs flex items-center space-x-1.5 animate-pulse border border-yellow-300 shadow-[0_0_15px_rgba(239,68,68,0.8)]">
+                    <ShieldAlert className="w-3.5 h-3.5 text-yellow-300" />
+                    <span>⚠️ FIREARM DETECTED</span>
                   </span>
                 )}
                 <span className="px-2 py-1 rounded bg-black/70 border border-slate-700 text-xs font-mono text-cyan-400">
