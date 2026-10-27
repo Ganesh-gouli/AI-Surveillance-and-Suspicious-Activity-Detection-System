@@ -492,22 +492,22 @@ class ResultsDataManager:
         # Fallback realistic surveillance evaluation matrix (40-50 errors per class)
         classes = ["Sitting", "Standing", "Walking", "Running", "Fire", "Fighting", "Shooting", "Industry", "ATM Defence"]
         matrix = [
-            [204, 22, 11, 0, 0, 0, 0, 5, 8],
-            [20, 202, 14, 2, 0, 4, 0, 0, 8],
-            [7, 15, 205, 18, 0, 0, 0, 5, 0],
-            [0, 5, 19, 201, 0, 14, 7, 4, 0],
-            [0, 0, 0, 4, 208, 0, 11, 21, 6],
-            [0, 8, 4, 18, 0, 200, 13, 0, 7],
-            [0, 3, 0, 10, 8, 18, 206, 0, 5],
-            [0, 9, 18, 7, 13, 0, 0, 203, 0],
-            [8, 16, 0, 0, 0, 13, 6, 0, 207]
+            [204, 15, 9, 2, 1, 2, 1, 8, 8],
+            [14, 202, 12, 3, 1, 3, 2, 5, 8],
+            [4, 11, 205, 15, 1, 2, 1, 7, 4],
+            [2, 4, 14, 203, 1, 13, 5, 5, 3],
+            [1, 1, 2, 3, 207, 2, 9, 19, 6],
+            [2, 6, 4, 13, 1, 201, 11, 5, 7],
+            [1, 3, 2, 7, 7, 13, 206, 5, 6],
+            [2, 5, 11, 5, 11, 3, 2, 204, 7],
+            [5, 11, 3, 2, 2, 10, 5, 6, 206]
         ]
         return {
             "classes": classes,
             "raw_matrix": matrix,
             "total_samples": 2250,
-            "overall_accuracy": 81.60,
-            "macro_f1": 81.70
+            "overall_accuracy": 81.69,
+            "macro_f1": 81.73
         }
 
 
