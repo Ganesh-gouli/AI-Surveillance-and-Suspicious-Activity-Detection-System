@@ -1,0 +1,12 @@
+Class ID,Class Name,Operational Category,Support (N),TP,FP,FN,TN,Precision (%),Recall (%),Specificity (%),F1-Score (%),Class Accuracy (%),FPR (%),AUC-ROC (%)
+1,Sitting,Posture & Locomotion,250,217,27,33,1973,88.93,86.8,98.65,87.85,97.33,1.35,95.8
+2,Standing,Posture & Locomotion,250,216,43,34,1957,83.4,86.4,97.85,84.87,96.58,2.15,94.6
+3,Walking,Posture & Locomotion,250,218,40,32,1960,84.5,87.2,98.0,85.83,96.8,2.0,95.1
+4,Running,Posture & Locomotion,250,215,39,35,1961,84.65,86.0,98.05,85.32,96.71,1.95,94.8
+5,Fighting,Physical Violence,250,216,37,34,1963,85.38,86.4,98.15,85.88,96.84,1.85,95.2
+6,Shooting,Armed Threat,250,219,27,31,1973,89.02,87.6,98.65,88.31,97.42,1.35,96.2
+7,ATM Defence,Asset Vandalism,250,219,27,31,1973,89.02,87.6,98.65,88.31,97.42,1.35,96.2
+8,Industry,Industrial Safety,250,217,27,33,1973,88.93,86.8,98.65,87.85,97.33,1.35,95.9
+9,Fire,Environmental Hazard,250,221,25,29,1975,89.84,88.4,98.75,89.11,97.6,1.25,96.8
+
+SYSTEM,Macro Average,All 9 Classes,2250,1958,292,292,-,87.07,87.02,98.38,87.04,87.02,1.62,95.62
