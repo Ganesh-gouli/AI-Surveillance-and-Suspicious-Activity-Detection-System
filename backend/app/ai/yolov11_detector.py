@@ -112,8 +112,8 @@ class YOLOv11Detector:
             h, w = frame.shape[:2]
             is_fire, p_fire, p_no_fire, boxes = self.fire_detector.detect_boxes_and_classify(
                 frame,
-                yolo_conf=0.35,
-                imgsz=imgsz
+                yolo_conf=0.20,
+                imgsz=max(imgsz, 384)
             )
             return {
                 "is_fire": is_fire,
@@ -196,8 +196,7 @@ class YOLOv11Detector:
 
                 # Fire & Flame Recognition: Strictly execute ONLY when explicitly requested (detect_fire=True)
                 if detect_fire:
-                    if self.frame_counter % 2 == 0 or self.cached_fire_info.get("is_fire", False):
-                        self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
+                    self.cached_fire_info = self._detect_fire(frame, imgsz=max(imgsz, 384))
                 else:
                     self.cached_fire_info = {"is_fire": False, "fire_confidence": 0.0, "no_fire_confidence": 100.0, "boxes": []}
                 fire_info = self.cached_fire_info
@@ -224,8 +223,7 @@ class YOLOv11Detector:
                 pass
 
         if detect_fire:
-            if self.frame_counter % 2 == 0 or self.cached_fire_info.get("is_fire", False):
-                self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
+            self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 384))
         else:
             self.cached_fire_info = {"is_fire": False, "fire_confidence": 0.0, "no_fire_confidence": 100.0, "boxes": []}
         fire_info = self.cached_fire_info

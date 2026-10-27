@@ -123,8 +123,8 @@ export const LiveWebcam: React.FC = () => {
     } catch (e) {}
   };
 
-  // PyTorch Fire Detection Live State - Disabled by default to prevent continuous webcam fire detection
-  const [fireMonitorActive, setFireMonitorActive] = useState<boolean>(false);
+  // PyTorch Fire Detection Live State - Enabled by default for real-time flame & hazard detection
+  const [fireMonitorActive, setFireMonitorActive] = useState<boolean>(true);
   const fireMonitorActiveRef = useRef(fireMonitorActive);
   fireMonitorActiveRef.current = fireMonitorActive;
   const [fireData, setFireData] = useState<{

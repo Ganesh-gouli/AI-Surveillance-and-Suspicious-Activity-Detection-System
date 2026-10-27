@@ -104,23 +104,38 @@ class FireDetector:
     def _is_valid_flame_region(self, crop: np.ndarray) -> bool:
         """
         Physically validates that a candidate fire region contains incandescent flame signatures
-        (high luminance and warm red/orange dominance) to suppress false positives on skin tones,
-        clothing, ambient lamps, and wooden surfaces.
+        (high peak luminance and warm red/orange flame core) to suppress false positives on skin tones,
+        clothing, ambient lamps, and wooden surfaces while correctly detecting real fire even when
+        surrounded by dark wood logs, brick hearths, or screens.
         """
         if crop is None or crop.size < 24:
             return False
         try:
             hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-            mean_v = float(np.mean(hsv[:, :, 2]))
-            b_mean = float(np.mean(crop[:, :, 0]))
-            g_mean = float(np.mean(crop[:, :, 1]))
-            r_mean = float(np.mean(crop[:, :, 2]))
+            v = hsv[:, :, 2]
+            r = crop[:, :, 2]
+            g = crop[:, :, 1]
+            b = crop[:, :, 0]
 
-            # Flame condition: luminous (V >= 115), pronounced Red dominance (R > B + 15 and R > 115)
-            if mean_v < 115.0 or r_mean < 115.0:
+            # 1. Peak luminance check: flames are incandescent light emitters (90th percentile V >= 120, R >= 120)
+            v_90 = float(np.percentile(v, 90))
+            r_90 = float(np.percentile(r, 90))
+            if v_90 < 120.0 or r_90 < 120.0:
                 return False
-            if r_mean <= b_mean + 15.0:
+
+            # 2. Flame chromaticity signature (Red dominance over Blue and warm glow)
+            r_f = r.astype(np.float32)
+            g_f = g.astype(np.float32)
+            b_f = b.astype(np.float32)
+            v_f = v.astype(np.float32)
+
+            flame_pixels = (r_f > 110.0) & (r_f > b_f + 18.0) & (v_f > 110.0) & (r_f >= g_f * 0.75)
+            flame_ratio = float(np.mean(flame_pixels))
+
+            # At least 5% of candidate box must be incandescent flame core
+            if flame_ratio < 0.05:
                 return False
+
             return True
         except Exception:
             return False
@@ -128,8 +143,8 @@ class FireDetector:
     def detect_boxes_and_classify(
         self,
         frame_bgr: np.ndarray,
-        yolo_conf: float = 0.50,
-        imgsz: int = 320
+        yolo_conf: float = 0.20,
+        imgsz: int = 384
     ) -> Tuple[bool, float, float, List[Dict[str, Any]]]:
         """
         Runs high-speed accurate YOLO bounding box detection with high-luminance flame validation.
@@ -186,11 +201,8 @@ class FireDetector:
             except Exception as e:
                 print(f"[FireDetector] YOLO inference notice: {e}")
 
-        # 2. Supplementary check: If YOLO is not available or inconclusive, only use deep-learning MobileNetV3
-        # Standalone color heuristics are strictly avoided to prevent false positives on warm indoor walls, lighting, or skin tones.
-
-        # 3. Fallback to MobileNetV3 Classifier only if no YOLO model is installed
-        if self.yolo_box_model is None and not fire_box_confidences:
+        # 2. Supplementary check: If YOLO did not yield verified fire boxes, run MobileNetV3 + flame contour localization
+        if not fire_box_confidences:
             try:
                 frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 pil_img = Image.fromarray(frame_rgb)
@@ -199,9 +211,34 @@ class FireDetector:
                     logits = self.model(tensor)
                     probs = torch.softmax(logits, dim=1).cpu().numpy()[0]
                 pytorch_fire = float(probs[1])
-                if pytorch_fire >= 0.85:
-                    # Verify overall flame chromaticity before generating a full-scene box
-                    if self._is_valid_flame_region(frame_bgr):
+                if pytorch_fire >= 0.70 and self._is_valid_flame_region(frame_bgr):
+                    r_f = frame_bgr[:, :, 2].astype(np.float32)
+                    g_f = frame_bgr[:, :, 1].astype(np.float32)
+                    b_f = frame_bgr[:, :, 0].astype(np.float32)
+                    hsv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2HSV)
+                    v_f = hsv[:, :, 2].astype(np.float32)
+                    flame_mask = (r_f > 115.0) & (r_f > b_f + 20.0) & (v_f > 115.0) & (r_f >= g_f * 0.75)
+                    flame_u8 = (flame_mask * 255).astype(np.uint8)
+                    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+                    closed = cv2.morphologyEx(flame_u8, cv2.MORPH_CLOSE, kernel)
+                    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    min_area = max(80.0, w * h * 0.003)
+                    found_contour = False
+                    for c in contours:
+                        if cv2.contourArea(c) >= min_area:
+                            cx, cy, cw, ch = cv2.boundingRect(c)
+                            box_crop = frame_bgr[cy:cy+ch, cx:cx+cw]
+                            if self._is_valid_flame_region(box_crop):
+                                fire_box_confidences.append(pytorch_fire)
+                                boxes.append({
+                                    "x1": cx, "y1": cy,
+                                    "x2": cx + cw, "y2": cy + ch,
+                                    "width": cw, "height": ch,
+                                    "label": "Fire", "confidence": round(pytorch_fire * 100, 1),
+                                    "is_fire": True
+                                })
+                                found_contour = True
+                    if not found_contour and pytorch_fire >= 0.90:
                         fire_box_confidences.append(pytorch_fire)
                         boxes.append({
                             "x1": int(w * 0.2), "y1": int(h * 0.2),
@@ -347,12 +384,49 @@ class FireDetector:
                 description = "Low-light / dark scene verified. No flame illumination present."
             else:
                 # Elevated FireNet classification but 0 bounding boxes detected by YOLO
-                # Prevents classifying an image as fire simply because it contains red or orange objects.
-                status = "NO FIRE DETECTED"
-                status_code = "NO_FIRE"
-                is_fire = False
-                confidence = 92.4
-                description = "Warm color / red-orange object detected without flame texture or thermal boundary."
+                if firenet_fire >= 0.70 and self._is_valid_flame_region(image_bgr):
+                    status = "FIRE DETECTED"
+                    status_code = "FIRE"
+                    is_fire = True
+                    confidence = round(firenet_fire * 100, 1)
+                    description = f"Confirmed active fire hazard detected with {confidence}% confidence."
+                    # Extract flame region for visual box
+                    r_f = image_bgr[:, :, 2].astype(np.float32)
+                    g_f = image_bgr[:, :, 1].astype(np.float32)
+                    b_f = image_bgr[:, :, 0].astype(np.float32)
+                    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+                    v_f = hsv[:, :, 2].astype(np.float32)
+                    flame_mask = (r_f > 115.0) & (r_f > b_f + 20.0) & (v_f > 115.0) & (r_f >= g_f * 0.75)
+                    flame_u8 = (flame_mask * 255).astype(np.uint8)
+                    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+                    closed = cv2.morphologyEx(flame_u8, cv2.MORPH_CLOSE, kernel)
+                    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    min_area = max(80.0, w * h * 0.003)
+                    for c in contours:
+                        if cv2.contourArea(c) >= min_area:
+                            cx, cy, cw, ch = cv2.boundingRect(c)
+                            box_crop = image_bgr[cy:cy+ch, cx:cx+cw]
+                            if self._is_valid_flame_region(box_crop):
+                                boxes.append({
+                                    "x1": cx, "y1": cy, "x2": cx + cw, "y2": cy + ch,
+                                    "width": cw, "height": ch,
+                                    "label": "Fire", "confidence": round(firenet_fire * 100, 1),
+                                    "is_fire": True
+                                })
+                    if not boxes:
+                        boxes.append({
+                            "x1": int(w * 0.15), "y1": int(h * 0.15),
+                            "x2": int(w * 0.85), "y2": int(h * 0.85),
+                            "width": int(w * 0.7), "height": int(h * 0.7),
+                            "label": "Fire", "confidence": round(firenet_fire * 100, 1),
+                            "is_fire": True
+                        })
+                else:
+                    status = "NO FIRE DETECTED"
+                    status_code = "NO_FIRE"
+                    is_fire = False
+                    confidence = 92.4
+                    description = "Warm color / red-orange object detected without flame texture or thermal boundary."
 
         # 4. Generate visual annotated preview if boxes are present
         annotated_canvas = image_bgr.copy()
