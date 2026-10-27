@@ -101,11 +101,34 @@ class FireDetector:
                 print(f"[FireDetector] Could not load weights from {path}: {e}")
         else:
             print(f"[FireDetector] No trained weights found at {path}. Operating with base model.")
+    def _is_valid_flame_region(self, crop: np.ndarray) -> bool:
+        """
+        Physically validates that a candidate fire region contains incandescent flame signatures
+        (high luminance and warm red/orange dominance) to suppress false positives on skin tones,
+        clothing, ambient lamps, and wooden surfaces.
+        """
+        if crop is None or crop.size < 24:
+            return False
+        try:
+            hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+            mean_v = float(np.mean(hsv[:, :, 2]))
+            b_mean = float(np.mean(crop[:, :, 0]))
+            g_mean = float(np.mean(crop[:, :, 1]))
+            r_mean = float(np.mean(crop[:, :, 2]))
+
+            # Flame condition: luminous (V >= 115), pronounced Red dominance (R > B + 15 and R > 115)
+            if mean_v < 115.0 or r_mean < 115.0:
+                return False
+            if r_mean <= b_mean + 15.0:
+                return False
+            return True
+        except Exception:
+            return False
 
     def detect_boxes_and_classify(
         self,
         frame_bgr: np.ndarray,
-        yolo_conf: float = 0.35,
+        yolo_conf: float = 0.50,
         imgsz: int = 320
     ) -> Tuple[bool, float, float, List[Dict[str, Any]]]:
         """
@@ -133,18 +156,29 @@ class FireDetector:
                         x1, y1, x2, y2 = map(int, b.xyxy[0].tolist())
                         is_fire_label = (label.lower() == "fire")
 
+                        bx1 = max(0, x1)
+                        by1 = max(0, y1)
+                        bx2 = min(w - 1, x2)
+                        by2 = min(h - 1, y2)
+                        bw = max(1, bx2 - bx1)
+                        bh = max(1, by2 - by1)
+
+                        # Photometric flame validation to reject skin tones, orange shirts, and ambient lamps
                         if is_fire_label:
+                            box_crop = frame_bgr[by1:by2, bx1:bx2]
+                            if not self._is_valid_flame_region(box_crop):
+                                continue
                             fire_box_confidences.append(conf)
                         else:
                             smoke_box_confidences.append(conf)
 
                         boxes.append({
-                            "x1": max(0, x1),
-                            "y1": max(0, y1),
-                            "x2": min(w - 1, x2),
-                            "y2": min(h - 1, y2),
-                            "width": max(1, x2 - x1),
-                            "height": max(1, y2 - y1),
+                            "x1": bx1,
+                            "y1": by1,
+                            "x2": bx2,
+                            "y2": by2,
+                            "width": bw,
+                            "height": bh,
                             "label": label,
                             "confidence": round(conf * 100, 1),
                             "is_fire": is_fire_label
@@ -165,15 +199,17 @@ class FireDetector:
                     logits = self.model(tensor)
                     probs = torch.softmax(logits, dim=1).cpu().numpy()[0]
                 pytorch_fire = float(probs[1])
-                if pytorch_fire >= 0.70:
-                    fire_box_confidences.append(pytorch_fire)
-                    boxes.append({
-                        "x1": int(w * 0.2), "y1": int(h * 0.2),
-                        "x2": int(w * 0.8), "y2": int(h * 0.8),
-                        "width": int(w * 0.6), "height": int(h * 0.6),
-                        "label": "Fire", "confidence": round(pytorch_fire * 100, 1),
-                        "is_fire": True
-                    })
+                if pytorch_fire >= 0.85:
+                    # Verify overall flame chromaticity before generating a full-scene box
+                    if self._is_valid_flame_region(frame_bgr):
+                        fire_box_confidences.append(pytorch_fire)
+                        boxes.append({
+                            "x1": int(w * 0.2), "y1": int(h * 0.2),
+                            "x2": int(w * 0.8), "y2": int(h * 0.8),
+                            "width": int(w * 0.6), "height": int(h * 0.6),
+                            "label": "Fire", "confidence": round(pytorch_fire * 100, 1),
+                            "is_fire": True
+                        })
             except Exception:
                 pass
 

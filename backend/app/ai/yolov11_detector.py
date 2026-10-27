@@ -70,6 +70,7 @@ class YOLOv11Detector:
         self.frame_counter = 0
         self.fire_detector = None
         self.cached_fire_info = {"is_fire": False, "fire_confidence": 0.0, "no_fire_confidence": 100.0, "boxes": []}
+        self._cached_weapon_objects = []
         self._init_models()
 
     def _init_models(self):
@@ -221,46 +222,52 @@ class YOLOv11Detector:
                                     "bbox": [bx, by, bw, bh]
                                 })
 
-                # Run Neural Gun & Firearm Detection
+                # Run Neural Gun & Firearm Detection (optimized at 320px and every 3rd frame on CPU to eliminate lag)
                 if self.weapon_model is not None:
-                    try:
-                        w_res = self.weapon_model(frame, imgsz=640, conf=0.25, verbose=False)
-                        for r in w_res:
-                            for b in r.boxes:
-                                cls_id = int(b.cls[0])
-                                w_raw = self.weapon_model.names.get(cls_id, "Gun").lower()
-                                w_conf = float(b.conf[0])
-                                wx1, wy1, wx2, wy2 = map(int, b.xyxy[0].tolist())
-                                wbx = max(0, wx1)
-                                wby = max(0, wy1)
-                                wbw = min(w - wbx, max(1, wx2 - wx1))
-                                wbh = min(h - wby, max(1, wy2 - wy1))
+                    if self.frame_counter % 3 == 0 or not self._cached_weapon_objects:
+                        try:
+                            self._cached_weapon_objects = []
+                            w_res = self.weapon_model(frame, imgsz=min(imgsz, 320), conf=0.50, verbose=False)
+                            for r in w_res:
+                                for b in r.boxes:
+                                    cls_id = int(b.cls[0])
+                                    w_raw = self.weapon_model.names.get(cls_id, "Gun").lower()
+                                    w_conf = float(b.conf[0])
+                                    wx1, wy1, wx2, wy2 = map(int, b.xyxy[0].tolist())
+                                    wbx = max(0, wx1)
+                                    wby = max(0, wy1)
+                                    wbw = min(w - wbx, max(1, wx2 - wx1))
+                                    wbh = min(h - wby, max(1, wy2 - wy1))
 
-                                # Filter extreme degenerate slit lines (e.g. razor-thin shelf line across wall)
-                                if (wbw / max(1, wbh) > 12.0) or (wbh / max(1, wbw) > 12.0) or (wbw * wbh < 100):
-                                    continue
+                                    # Filter extreme degenerate slit lines (e.g. razor-thin shelf line across wall)
+                                    if (wbw / max(1, wbh) > 12.0) or (wbh / max(1, wbw) > 12.0) or (wbw * wbh < 100):
+                                        continue
 
-                                # Specifically filter whole-room architectural background artifacts (ceiling shelves, mantles)
-                                if (wbw >= w * 0.70 and wbh >= h * 0.70) and w_conf < 0.60:
-                                    continue
+                                    # Specifically filter whole-room architectural background artifacts
+                                    if (wbw >= w * 0.70 and wbh >= h * 0.70) and w_conf < 0.65:
+                                        continue
 
-                                norm_label = "gun" if any(k in w_raw for k in ["gun", "handgun", "pistol", "rifle", "shotgun", "smg", "sniper", "firearm", "bazooka", "grenade"]) else w_raw
-                                objects.append({
-                                    "label": norm_label,
-                                    "category": "weapon",
-                                    "confidence": round(w_conf, 3),
-                                    "bbox": [wbx, wby, wbw, wbh],
-                                    "is_weapon": True
-                                })
-                    except Exception as e:
-                        print(f"[YOLOv11 Detector] Weapon inference notice: {e}")
+                                    norm_label = "gun" if any(k in w_raw for k in ["gun", "handgun", "pistol", "rifle", "shotgun", "smg", "sniper", "firearm", "bazooka", "grenade"]) else w_raw
+                                    self._cached_weapon_objects.append({
+                                        "label": norm_label,
+                                        "category": "weapon",
+                                        "confidence": round(w_conf, 3),
+                                        "bbox": [wbx, wby, wbw, wbh],
+                                        "is_weapon": True
+                                    })
+                        except Exception as e:
+                            print(f"[YOLOv11 Detector] Weapon inference notice: {e}")
+
+                    # Append cached weapon detections
+                    objects.extend(self._cached_weapon_objects)
 
                 # Perform Spatial Person-Object Association (e.g. person holding phone, laptop, or gun)
                 self._associate_person_objects(people, objects)
 
-                # Fire & Flame Recognition: Only run when explicitly requested
+                # Fire & Flame Recognition: Strictly execute ONLY when explicitly requested (detect_fire=True)
                 if detect_fire:
-                    self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
+                    if self.frame_counter % 2 == 0 or self.cached_fire_info.get("is_fire", False):
+                        self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
                 else:
                     self.cached_fire_info = {"is_fire": False, "fire_confidence": 0.0, "no_fire_confidence": 100.0, "boxes": []}
                 fire_info = self.cached_fire_info
@@ -286,8 +293,11 @@ class YOLOv11Detector:
             except Exception:
                 pass
 
-        if self.frame_counter % 2 == 0 or self.cached_fire_info.get("is_fire", False):
-            self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
+        if detect_fire:
+            if self.frame_counter % 2 == 0 or self.cached_fire_info.get("is_fire", False):
+                self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
+        else:
+            self.cached_fire_info = {"is_fire": False, "fire_confidence": 0.0, "no_fire_confidence": 100.0, "boxes": []}
         fire_info = self.cached_fire_info
 
         return people, objects, fire_info
@@ -403,20 +413,28 @@ class YOLOv11Detector:
                 or (is_standing_pose and aspect_ratio >= 1.25)
             )
 
-        # ── 3. Apply the strict 4-rule hierarchy ──
-        if full_body_detected:
-            # RULE 3: Fast movement → RUNNING
-            if velocity >= 55.0:
-                return "running", 0.96
-            # RULE 2: Slow movement → WALKING
-            if velocity >= 15.0:
-                return "walking", 0.95
-            # RULE 1: Stationary full body → STANDING
+        # ── 3. Apply calibrated locomotion & posture hierarchy ──
+        # Check locomotion velocity first (independent of whether lower legs are cropped by webcam)
+        if velocity >= 20.0:
+            return "running", 0.96
+        elif velocity >= 5.5:
+            return "walking", 0.95
+
+        # Stationary or in-place person (< 5.5 px/frame): differentiate Standing vs. Sitting
+        if full_body_detected or is_standing_pose:
             return "standing", 0.96
-        else:
-            # RULE 4: Half visible body (upper torso / webcam crop) → SITTING
-            # Even with minor velocity (head movement, gestures) half-body stays SITTING
-            return "sitting", 0.95
+
+        # Upper body webcam view: determine standing vs sitting
+        # When a person stands in front of a webcam, their head and shoulders rise into the top third
+        # of the frame and their bounding box elongates vertically.
+        head_in_upper_third = (y < 0.20 * frame_h)
+        elongated_upper_torso = (aspect_ratio >= 1.32 or h > 0.55 * frame_h)
+        spine_is_upright = (spine_incline is None or spine_incline < 28.0)
+
+        if head_in_upper_third and elongated_upper_torso and spine_is_upright:
+            return "standing", 0.95
+
+        return "sitting", 0.95
 
     def infer_activity_from_objects(self, interacting_objects: List[Dict[str, Any]]) -> Optional[Tuple[str, float]]:
         """

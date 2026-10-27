@@ -193,7 +193,7 @@ class SentinelInferencePipeline:
                     interacting_objects=track.interacting_objects
                 )
                 pose_act = pose_data.get("activity", "standing")
-                pose_conf = pose_data.get("confidence", 0.94)
+                pose_conf = pose_data.get("confidence", 0.95)
                 pose_landmarks = pose_data.get("landmarks", [])
                 pose_angles = pose_data.get("angles", {})
                 posture_details = pose_data.get("posture_details", "")
@@ -202,33 +202,32 @@ class SentinelInferencePipeline:
                 is_standing_pose = pose_data.get("is_standing", False)
                 is_full_body = pose_data.get("is_full_body", None)
 
-                # 3. Google MediaPipe Pose Direct Classification for standing, sleeping, sitting
-                pose_act = pose_data.get("activity", "sitting")
-                pose_conf = pose_data.get("confidence", 0.95)
-
+                # 3. Google MediaPipe Pose & Locomotion Activity Classification
                 if pose_act == "sleeping":
                     raw_activity = "sleeping"
                     raw_conf = pose_conf
-                elif pose_act == "standing":
-                    # Full-body upright standing detected by MediaPipe: check locomotion speed
-                    if track.velocity >= 55.0:
+                else:
+                    norm_velocity = track.velocity / max(1.0, float(w))
+
+                    # RULE 1: Running (Rapid displacement across frame)
+                    if track.velocity >= 20.0 or norm_velocity >= 0.035:
                         raw_activity = "running"
                         raw_conf = 0.96
-                    elif track.velocity >= 15.0:
+                    # RULE 2: Walking (Moderate translation across scene)
+                    elif track.velocity >= 5.5 or norm_velocity >= 0.009:
                         raw_activity = "walking"
                         raw_conf = 0.95
                     else:
-                        raw_activity = "standing"
-                        raw_conf = pose_conf
-                else:
-                    # Sitting detected by MediaPipe (half-visible body or seated hip flexion)
-                    # Check for tabletop device interactions (laptop, phone, tv)
-                    device_act = self.detector.infer_activity_from_objects(track.interacting_objects)
-                    if device_act:
-                        raw_activity, raw_conf = device_act
-                    else:
-                        raw_activity = "sitting"
-                        raw_conf = pose_conf
+                        # RULE 3 & 4: Stationary person (< 5.5 px/frame): Sitting vs Standing vs Device Interaction
+                        device_act = self.detector.infer_activity_from_objects(track.interacting_objects)
+                        if device_act and pose_act == "sitting":
+                            raw_activity, raw_conf = device_act
+                        elif pose_act == "standing":
+                            raw_activity = "standing"
+                            raw_conf = pose_conf
+                        else:
+                            raw_activity = "sitting"
+                            raw_conf = pose_conf
 
                 # Temporal smoothing over rolling window: eliminates flicker and guarantees 100% stable accuracy
                 final_activity, final_conf = track.update_activity(raw_activity, raw_conf)

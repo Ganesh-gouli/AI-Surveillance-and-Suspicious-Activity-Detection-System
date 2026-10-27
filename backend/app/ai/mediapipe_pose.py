@@ -159,7 +159,8 @@ class MediaPipePoseEngine:
             if not results or not results.pose_landmarks:
                 # Fallback to aspect ratio heuristic if landmarks not detected
                 aspect_ratio = float(bh) / max(1.0, float(bw))
-                posture = "standing" if aspect_ratio >= 1.70 else "sitting"
+                head_near_top = (y < 0.22 * frame_h)
+                posture = "standing" if (aspect_ratio >= 1.35 or (head_near_top and bh > 0.50 * frame_h)) else "sitting"
                 return self._fallback_result(
                     posture,
                     0.80,
@@ -190,7 +191,10 @@ class MediaPipePoseEngine:
                 })
 
             # Biomechanical Angle Analysis
-            analysis = self._compute_biomechanics(raw_landmarks, crop_w, crop_h)
+            analysis = self._compute_biomechanics(
+                raw_landmarks, crop_w, crop_h,
+                bbox=bbox, frame_dim=(frame_h, frame_w), y1=y1
+            )
             analysis["landmarks"] = landmarks_list
             analysis["connections"] = SKELETON_CONNECTIONS
 
@@ -199,10 +203,18 @@ class MediaPipePoseEngine:
         except Exception as e:
             print(f"[MediaPipe Pose] Processing error: {e}")
             aspect_ratio = float(bh) / max(1.0, float(bw))
-            posture = "standing" if aspect_ratio >= 1.70 else "sitting"
+            posture = "standing" if aspect_ratio >= 1.35 else "sitting"
             return self._fallback_result(posture, 0.75, f"Error fallback ({str(e)})")
 
-    def _compute_biomechanics(self, landmarks, crop_w: int, crop_h: int) -> Dict[str, Any]:
+    def _compute_biomechanics(
+        self,
+        landmarks,
+        crop_w: int,
+        crop_h: int,
+        bbox: Optional[List[int]] = None,
+        frame_dim: Optional[Tuple[int, int]] = None,
+        y1: int = 0
+    ) -> Dict[str, Any]:
         """
         Computes accurate angles and determines standing vs. sitting vs. sleeping.
         """
@@ -299,42 +311,79 @@ class MediaPipePoseEngine:
                 "posture_details": f"Sleeping / Lying Down (Spine Incline: {spine_incline:.1f}°)"
             }
 
-        # Case B: Full Body Standing
-        if is_full_body and avg_hip is not None and spine_incline < 35.0:
-            if avg_hip >= 135.0 or (avg_knee is not None and avg_knee >= 142.0):
-                conf = round(min(0.99, max(0.92, 0.90 + (avg_hip - 135.0) / 45.0 * 0.09)), 3)
-                details = f"Standing (Full Body, Extended Hips: {avg_hip:.1f}°, Upright Spine: {spine_incline:.1f}°)"
-                if avg_knee is not None:
-                    details += f", Knees: {avg_knee:.1f}°"
+        # Case B: Direct Joint Angle Evidence (applies whether or not ankles are in frame)
+        if spine_incline < 35.0:
+            # Extended hips or knees are an unambiguous physical marker of STANDING
+            if (avg_hip is not None and avg_hip >= 134.0) or (avg_knee is not None and avg_knee >= 140.0):
+                conf = round(min(0.99, max(0.92, 0.90 + ((avg_hip - 134.0) / 46.0 * 0.09 if avg_hip else 0.05))), 3)
+                hip_val = f"{avg_hip:.1f}°" if avg_hip is not None else "N/A"
+                knee_val = f"{avg_knee:.1f}°" if avg_knee is not None else "N/A"
+                details = f"Standing (Extended Joints: Hips {hip_val}, Knees {knee_val}, Spine: {spine_incline:.1f}°)"
                 return {
                     "activity": "standing",
                     "confidence": conf,
                     "is_standing": True,
                     "is_sitting": False,
                     "is_lying": False,
-                    "is_full_body": True,
+                    "is_full_body": bool(is_full_body),
                     "angles": angles_data,
                     "posture_details": details
                 }
-            elif 60.0 <= avg_hip <= 126.0 and (avg_knee is None or avg_knee <= 138.0):
-                conf = round(min(0.98, max(0.91, 0.92 + (1.0 - abs(avg_hip - 95.0) / 45.0) * 0.06)), 3)
-                details = f"Sitting (Full Body Seated, Hip Flexion: {avg_hip:.1f}°)"
-                if avg_knee is not None:
-                    details += f", Bent Knees: {avg_knee:.1f}°"
+            # Flexed hips and bent knees are an unambiguous physical marker of SITTING
+            elif (avg_hip is not None and avg_hip <= 126.0) or (avg_knee is not None and avg_knee <= 130.0):
+                conf = round(min(0.98, max(0.91, 0.92 + (1.0 - abs((avg_hip or 95.0) - 95.0) / 45.0) * 0.06)), 3)
+                hip_val = f"{avg_hip:.1f}°" if avg_hip is not None else "N/A"
+                knee_val = f"{avg_knee:.1f}°" if avg_knee is not None else "N/A"
+                details = f"Sitting (Flexed Seated Posture: Hips {hip_val}, Knees {knee_val})"
                 return {
                     "activity": "sitting",
                     "confidence": conf,
                     "is_standing": False,
                     "is_sitting": True,
                     "is_lying": False,
-                    "is_full_body": True,
+                    "is_full_body": bool(is_full_body),
                     "angles": angles_data,
                     "posture_details": details
                 }
 
-        # Case C: Half Visible Body (Upper Torso / Desktop Webcam / Lower Body Occluded)
-        # By strict rule: if the body is half visible, it represents SITTING.
+        # Case C: Webcam / Half-Body / Desktop Occlusion View
+        # Biomechanical spatial cues:
         crop_aspect = float(crop_h) / max(1.0, float(crop_w))
+        
+        # Calculate full-frame shoulder and head elevation if coordinates are available
+        sh_y_frame = None
+        if frame_dim and frame_dim[0] > 0:
+            f_h = float(frame_dim[0])
+            sh_y_frame = (y1 + (l_sh[1] + r_sh[1]) / 2.0) / f_h
+
+        bbox_aspect = (float(bbox[3]) / max(1.0, float(bbox[2]))) if bbox else crop_aspect
+        bbox_height_ratio = (float(bbox[3]) / float(frame_dim[0])) if (bbox and frame_dim) else 0.5
+
+        # When a person is standing in front of a webcam:
+        # 1. Shoulders and head are elevated (sh_y_frame < 0.35)
+        # 2. Bounding box is tall and elongated (bbox_aspect >= 1.30 or bbox_height_ratio > 0.52)
+        # 3. Spine is strictly upright (spine_incline < 28.0°)
+        is_standing_webcam = (
+            spine_incline < 28.0 and (
+                (sh_y_frame is not None and sh_y_frame < 0.35 and (bbox_aspect >= 1.30 or bbox_height_ratio > 0.52)) or
+                (bbox is not None and bbox[1] < 0.18 * (frame_dim[0] if frame_dim else 720) and bbox_aspect >= 1.32) or
+                (crop_aspect >= 1.50)
+            )
+        )
+
+        if is_standing_webcam:
+            return {
+                "activity": "standing",
+                "confidence": 0.94,
+                "is_standing": True,
+                "is_sitting": False,
+                "is_lying": False,
+                "is_full_body": False,
+                "angles": angles_data,
+                "posture_details": f"Standing (Upright Upper-Body, Aspect: {bbox_aspect:.2f}, Incline: {spine_incline:.1f}°)"
+            }
+
+        # Otherwise, seated at desk
         return {
             "activity": "sitting",
             "confidence": 0.95,
@@ -343,7 +392,7 @@ class MediaPipePoseEngine:
             "is_lying": False,
             "is_full_body": False,
             "angles": angles_data,
-            "posture_details": f"Sitting (Half-Body Visible, Aspect: {crop_aspect:.2f})"
+            "posture_details": f"Sitting (Desk/Seated View, Aspect: {bbox_aspect:.2f})"
         }
 
     def _fallback_result(self, activity: str, confidence: float, reason: str) -> Dict[str, Any]:

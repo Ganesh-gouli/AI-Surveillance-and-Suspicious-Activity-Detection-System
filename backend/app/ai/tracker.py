@@ -18,6 +18,8 @@ class TrackedObject:
         self.interacting_objects = interacting_objects or []
         self.is_threat = False
         self.threat_type = None
+        self.stationary_frames = 0
+        self.motion_frames = 0
 
     def update(self, bbox: List[int], confidence: float, interacting_objects: List[Dict[str, Any]] = None):
         # Exponential Moving Average (EMA) position smoothing to stabilize bounding boxes
@@ -47,32 +49,75 @@ class TrackedObject:
 
     def update_activity(self, raw_activity: str, raw_conf: float) -> Tuple[str, float]:
         """
-        Smooths activity over a rolling window using confidence-weighted voting.
-        Eliminates jitter, hesitation, and false single-frame flips for 100% rock-solid detection.
+        Smooths activity over a rolling window using confidence-weighted voting and hysteresis debouncing.
+        Eliminates jitter, hesitation, and rapid flipping between sitting, walking, standing, and running.
         """
         self.activity_history.append((raw_activity, raw_conf))
-        if len(self.activity_history) > 8:
+        if len(self.activity_history) > 10:
             self.activity_history.pop(0)
 
-        # For newly initialized tracks (hits <= 2), immediately synchronize to detected activity
-        if self.hits <= 2 or not hasattr(self, 'activity') or self.activity is None:
+        # For newly initialized tracks, immediately synchronize to detected activity
+        if (self.hits <= 2 and len(self.activity_history) <= 2) or not hasattr(self, 'activity') or self.activity is None:
             self.activity = raw_activity
             self.activity_confidence = raw_conf
             return self.activity, self.activity_confidence
 
-        # Accumulate confidence weights per activity in recent window
+        # Motion vs. Stationary tracking
+        is_raw_motion = raw_activity in ("walking", "running")
+        if is_raw_motion:
+            self.motion_frames += 1
+            self.stationary_frames = 0
+        else:
+            self.stationary_frames += 1
+            self.motion_frames = 0
+
+        # Rapid locomotion response:
+        # If moving fast (running), switch within 2 frames
+        if raw_activity == "running":
+            recent_runs = [a for a, _ in self.activity_history[-2:]]
+            if recent_runs.count("running") >= 2:
+                self.activity = "running"
+                self.activity_confidence = raw_conf
+                return self.activity, self.activity_confidence
+
+        # If walking, transition smoothly within 2 frames
+        if raw_activity == "walking" and self.activity in ("sitting", "standing"):
+            recent_walks = [a for a, _ in self.activity_history[-2:]]
+            if recent_walks.count("walking") >= 2:
+                self.activity = "walking"
+                self.activity_confidence = raw_conf
+                return self.activity, self.activity_confidence
+
+        # If currently walking, hold walking state across natural stride pauses
+        # (require at least 4 consecutive stationary frames to drop back to standing/sitting)
+        if self.activity == "walking" and not is_raw_motion:
+            if self.stationary_frames < 4:
+                return self.activity, self.activity_confidence
+
+        # If currently running, hold running state for at least 3 frames
+        if self.activity == "running" and raw_activity != "running":
+            recent_acts = [a for a, _ in self.activity_history[-3:]]
+            if "running" in recent_acts:
+                return self.activity, self.activity_confidence
+
+        # Posture Debouncing: require 3 frames of consistent evidence between sitting and standing
+        if self.activity in ("sitting", "standing") and raw_activity in ("sitting", "standing"):
+            recent_postures = [a for a, _ in self.activity_history[-4:]]
+            if recent_postures.count(raw_activity) >= 3:
+                self.activity = raw_activity
+                self.activity_confidence = raw_conf
+            return self.activity, self.activity_confidence
+
+        # General confidence-weighted voting fallback
         votes: Dict[str, float] = {}
         for act, conf in self.activity_history:
             votes[act] = votes.get(act, 0.0) + conf
 
-        # Find highest weighted activity
         best_act = max(votes, key=votes.get)
-        total_weight = sum(votes.values())
         best_weight = votes[best_act]
 
-        # Require at least 2 consecutive frames of evidence to switch away from current stable activity
         if best_act != self.activity:
-            recent_acts = [a for a, _ in self.activity_history[-2:]]
+            recent_acts = [a for a, _ in self.activity_history[-3:]]
             if recent_acts.count(best_act) >= 2:
                 self.activity = best_act
                 self.activity_confidence = round(best_weight / max(1.0, len(self.activity_history)), 3)
