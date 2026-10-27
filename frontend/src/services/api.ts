@@ -171,6 +171,93 @@ export const api = {
       if (res.ok) return await res.json();
     } catch (e) {}
     return null;
+  },
+
+  // Results & Analysis Module (Sections 7.1 to 7.9)
+  async getResultsSummary(mode: string = 'demonstration'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/results/summary?mode=${mode}`);
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn("Results summary fetch error:", e);
+    }
+    return null;
+  },
+
+  async getModelTrainingResults(mode: string = 'demonstration'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/results/training?mode=${mode}`);
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return null;
+  },
+
+  async getEvaluationMetrics(mode: string = 'demonstration'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/results/metrics?mode=${mode}`);
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return null;
+  },
+
+  async getConfusionMatrix(mode: string = 'demonstration'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/results/confusion-matrix?mode=${mode}`);
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return null;
+  },
+
+  async getTrainingCurves(mode: string = 'demonstration'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/results/curves?mode=${mode}`);
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return null;
+  },
+
+  async getEnvironmentalResults(mode: string = 'demonstration'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/results/environmental?mode=${mode}`);
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return null;
+  },
+
+  async getHybridModelComparison(mode: string = 'demonstration'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/results/hybrid?mode=${mode}`);
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return null;
+  },
+
+  async getSystemInterfaces(): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/results/interfaces`);
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return null;
+  },
+
+  async getPerformanceBenchmarks(mode: string = 'demonstration'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/results/benchmarks?mode=${mode}`);
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return null;
+  },
+
+  async getTraditionalComparison(mode: string = 'demonstration'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/results/traditional?mode=${mode}`);
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return null;
+  },
+
+  getExportCsvUrl(sectionId: string): string {
+    return `${API_BASE}/results/export/csv/${sectionId}`;
   }
 };
 

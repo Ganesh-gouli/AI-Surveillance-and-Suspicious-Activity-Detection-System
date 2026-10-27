@@ -1,0 +1,102 @@
+[
+  {
+    "model_name": "SVM (RBF Kernel)",
+    "feature_representation": "Handcrafted Spatiotemporal Kinematics (2040-dim)",
+    "accuracy": 52.66,
+    "precision": 51.63,
+    "recall": 100.0,
+    "f1_score": 68.1,
+    "roc_auc": 87.61,
+    "training_duration_sec": 2.55,
+    "inference_latency_ms": 0.806,
+    "model_size_mb": 3.1,
+    "confusion_matrix": [
+      [
+        4,
+        89
+      ],
+      [
+        0,
+        95
+      ]
+    ],
+    "test_samples": 188,
+    "is_demonstration": false,
+    "evaluation_completed": true
+  },
+  {
+    "model_name": "SVM (Linear Kernel)",
+    "feature_representation": "Handcrafted Spatiotemporal Kinematics (2040-dim)",
+    "accuracy": 49.47,
+    "precision": 50.0,
+    "recall": 96.84,
+    "f1_score": 65.95,
+    "roc_auc": 87.41,
+    "training_duration_sec": 1.42,
+    "inference_latency_ms": 0.127,
+    "model_size_mb": 1.51,
+    "confusion_matrix": [
+      [
+        1,
+        92
+      ],
+      [
+        3,
+        92
+      ]
+    ],
+    "test_samples": 188,
+    "is_demonstration": false,
+    "evaluation_completed": true
+  },
+  {
+    "model_name": "Random Forest (100 Trees)",
+    "feature_representation": "Handcrafted Spatiotemporal Kinematics (2040-dim)",
+    "accuracy": 59.57,
+    "precision": 55.56,
+    "recall": 100.0,
+    "f1_score": 71.43,
+    "roc_auc": 97.35,
+    "training_duration_sec": 0.83,
+    "inference_latency_ms": 0.177,
+    "model_size_mb": 0.34,
+    "confusion_matrix": [
+      [
+        17,
+        76
+      ],
+      [
+        0,
+        95
+      ]
+    ],
+    "test_samples": 188,
+    "is_demonstration": false,
+    "evaluation_completed": true
+  },
+  {
+    "model_name": "Logistic Regression (L2)",
+    "feature_representation": "Handcrafted Spatiotemporal Kinematics (2040-dim)",
+    "accuracy": 51.06,
+    "precision": 50.83,
+    "recall": 96.84,
+    "f1_score": 66.67,
+    "roc_auc": 85.75,
+    "training_duration_sec": 0.59,
+    "inference_latency_ms": 0.011,
+    "model_size_mb": 0.02,
+    "confusion_matrix": [
+      [
+        4,
+        89
+      ],
+      [
+        3,
+        92
+      ]
+    ],
+    "test_samples": 188,
+    "is_demonstration": false,
+    "evaluation_completed": true
+  }
+]

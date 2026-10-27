@@ -171,3 +171,186 @@ export interface AIModelInfo {
   model_path: string;
   framework: string;
 }
+
+// =========================================================================
+// Academic Report Results & Analysis Module Types (Sections 7.1 to 7.9)
+// =========================================================================
+export type ResultMode = 'demonstration' | 'experimental';
+
+export interface ModelTrainingRecord {
+  model_id: string;
+  model_name: string;
+  architecture: string;
+  dataset_name: string;
+  number_of_classes: number;
+  class_names: string[];
+  training_samples: number;
+  validation_samples: number;
+  test_samples: number;
+  batch_size: number;
+  epochs: number;
+  optimizer: string;
+  learning_rate: string;
+  training_duration_sec: number;
+  trainable_parameters: number;
+  final_train_loss: number;
+  final_val_loss: number;
+  train_accuracy: number;
+  val_accuracy: number;
+  test_accuracy: number;
+  status: string;
+}
+
+export interface ClassMetricRecord {
+  class_name: string;
+  support: number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  specificity: number;
+  correct_count: number;
+  error_count: number;
+}
+
+export interface EvaluationMetricsSummary {
+  accuracy: number;
+  balanced_accuracy: number;
+  precision_macro: number;
+  recall_macro: number;
+  f1_score_macro: number;
+  precision_weighted: number;
+  recall_weighted: number;
+  f1_score_weighted: number;
+  specificity: number;
+  mcc: number;
+  roc_auc: number;
+  total_test_samples: number;
+}
+
+export interface EvaluationMetricsData {
+  metadata: {
+    result_source: ResultMode;
+    model_name: string;
+    dataset_name: string;
+    dataset_split?: string;
+    evaluation_timestamp: string;
+    is_demonstration: boolean;
+    evaluation_completed: boolean;
+    disclaimer?: string;
+  };
+  summary: EvaluationMetricsSummary;
+  classes: ClassMetricRecord[];
+  surveillance_implication: string;
+}
+
+export interface ConfusionMatrixData {
+  metadata: {
+    result_source: ResultMode;
+    model_name: string;
+    dataset_name: string;
+    class_names: string[];
+    is_demonstration: boolean;
+    disclaimer?: string;
+  };
+  classes: string[];
+  matrix: number[][];
+  row_normalized: number[][];
+  total_samples: number;
+  analysis: {
+    correct_predictions: number;
+    incorrect_predictions: number;
+    primary_confusion: string;
+    false_negative_rate: string;
+    root_cause: string;
+  };
+}
+
+export interface TrainingEpochRecord {
+  epoch: number;
+  train_loss: number;
+  val_loss: number;
+  train_accuracy: number;
+  val_accuracy: number;
+}
+
+export interface TrainingCurvesData {
+  metadata: {
+    result_source: ResultMode;
+    model_name: string;
+    epochs: number;
+    best_epoch: number;
+    is_demonstration: boolean;
+    disclaimer?: string;
+  };
+  history: TrainingEpochRecord[];
+  observations: {
+    convergence: string;
+    best_epoch_metrics: string;
+    overfitting_analysis: string;
+  };
+}
+
+export interface EnvironmentalConditionRecord {
+  condition: string;
+  category: string;
+  description: string;
+  transformation_params?: string;
+  accuracy: number;
+  f1_score: number;
+  delta_accuracy: number;
+  robustness_score: number;
+}
+
+export interface HybridModelRecord {
+  model_name: string;
+  architecture_type: string;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  parameter_count: number;
+  model_size_mb: number;
+  inference_latency_ms: number;
+  temporal_modeling: string;
+}
+
+export interface SystemInterfaceRecord {
+  id: string;
+  title: string;
+  route: string;
+  purpose: string;
+  input: string;
+  workflow: string;
+  output: string;
+  interaction: string;
+}
+
+export interface PerformanceBenchmarkModel {
+  model_name: string;
+  load_time_ms: number;
+  mean_latency_ms: number;
+  median_latency_ms: number;
+  p95_latency_ms: number;
+  throughput_fps: number;
+  preprocessing_ms?: number;
+  inference_ms?: number;
+  postprocessing_ms?: number;
+  total_parameters: number;
+  model_size_mb: number;
+  memory_delta_mb?: number;
+  cpu_utilization_percent?: number;
+  realtime_viable: boolean;
+}
+
+export interface TraditionalModelRecord {
+  model_name: string;
+  feature_representation: string;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  roc_auc?: number;
+  training_duration_sec: number;
+  inference_latency_ms: number;
+  model_size_mb: number;
+}

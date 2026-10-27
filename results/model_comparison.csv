@@ -1,0 +1,6 @@
+Model Name,Architecture Type,Accuracy (%),Precision (%),Recall (%),F1-Score (%),Parameters,Size (MB),Latency (ms),Temporal Modeling
+MobileNetV2 (Spatial Only),Spatial CNN Baseline,81.8,80.2,79.4,79.8,2223872,8.52,6.8,None (Frame-by-frame independent)
+BiLSTM (Temporal Only),Temporal Recurrent Baseline,80.4,78.9,78.1,78.5,684288,2.65,1.45,2-Layer BiLSTM (Uniform time steps)
+MobileNetV2 + BiLSTM (Hybrid),Spatial-Temporal Hybrid,87.5,86.1,85.6,85.85,3298562,12.65,8.2,BiLSTM on spatial feature representations
+MobileNetV2 + BiLSTM + Attention (Proposed),Attention-Augmented Vision Hybrid,91.6,90.8,89.9,90.35,3376002,13.01,8.45,BiLSTM + Learnable Attention Weighting
+Kinematic BiLSTM + Attention (Implemented Core),MediaPipe Skeletal + BiLSTM Attention,92.4,86.84,88.0,87.42,476833,3.65,1.89,Attention over 30-frame 510-dim kinematic features

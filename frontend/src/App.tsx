@@ -24,6 +24,7 @@ const Incidents = lazy(() => import('./pages/Incidents').then(m => ({ default: m
 const RestrictedZones = lazy(() => import('./pages/RestrictedZones').then(m => ({ default: m.RestrictedZones })));
 const HeatmapAnalytics = lazy(() => import('./pages/HeatmapAnalytics').then(m => ({ default: m.HeatmapAnalytics })));
 const AIModels = lazy(() => import('./pages/AIModels').then(m => ({ default: m.AIModels })));
+const ResultsAndAnalysis = lazy(() => import('./pages/ResultsAndAnalysis').then(m => ({ default: m.ResultsAndAnalysis })));
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 
 // Sleek high-tech cybernetic loading indicator during page transitions
@@ -106,6 +107,7 @@ export const App: React.FC = () => {
                 <Route path="/incidents" element={<Incidents />} />
                 <Route path="/zones" element={<RestrictedZones />} />
                 <Route path="/analytics" element={<HeatmapAnalytics />} />
+                <Route path="/results-analysis" element={<ResultsAndAnalysis />} />
                 <Route path="/models" element={<AIModels />} />
                 <Route path="/settings" element={<Settings />} />
               </Routes>

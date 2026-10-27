@@ -1,0 +1,5 @@
+Result Source,Class Name,Support,Precision (%),Recall (%),F1-Score (%),Specificity (%),Correct,Errors
+Demonstration (Simulated),NORMAL,700,94.83,94.29,94.56,88.0,660,40
+Demonstration (Simulated),SUSPICIOUS / THREAT,300,86.84,88.0,87.42,94.29,264,36
+Experimental (Measured),NORMAL,93,100.0,20.43,33.93,100.0,19,74
+Experimental (Measured),FIGHTING,95,56.21,100.0,71.97,20.43,95,0

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .database.session import init_db
-from .api.routers import cameras, videos, detection, incidents, zones, analytics, system, models, fire, fighting, shooting, atm, accidents
+from .api.routers import cameras, videos, detection, incidents, zones, analytics, system, models, fire, fighting, shooting, atm, accidents, results
 from .websocket.connection_manager import manager
 from .ai.inference_pipeline import global_pipeline
 
@@ -60,6 +60,7 @@ app.include_router(zones.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(models.router, prefix="/api")
+app.include_router(results.router, prefix="/api")
 
 # Static files for snapshots and uploaded media
 uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")

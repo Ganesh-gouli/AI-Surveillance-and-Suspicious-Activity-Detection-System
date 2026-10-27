@@ -1,0 +1,4 @@
+Model Name,Load Time (ms),Mean Latency (ms),Median Latency (ms),P95 Latency (ms),Throughput (FPS),Parameters,Size (MB),Realtime Viable
+Kinematic BiLSTM + Attention,22.15,1.89,1.78,2.54,527.8,957566,3.65,YES
+MobileNetV3 FireNet,59.83,8.99,8.8,10.76,111.3,1001122,3.82,YES
+MobileNetV2 + BiLSTM + Attention (Hybrid),63.91,1.55,1.43,2.0,644.1,3376002,12.88,YES
