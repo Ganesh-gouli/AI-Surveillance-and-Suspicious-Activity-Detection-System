@@ -4,19 +4,13 @@ import {
   LayoutDashboard,
   Tv,
   Camera,
-  Video,
   Image,
-  AlertTriangle,
-  Layers,
-  BarChart3,
-  Cpu,
   Settings,
   Webcam,
   Flame,
   Swords,
   Crosshair,
   ShieldAlert,
-  FlaskConical,
   HardHat
 } from 'lucide-react';
 
@@ -27,7 +21,6 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activeThreatCount = 4 }) => {
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/results-analysis', label: 'Results & Analysis', icon: FlaskConical, badge: 'CH 7' },
     { to: '/industrial-accidents', label: 'Industrial Accident AI', icon: HardHat, badge: '🚜 98%' },
     { to: '/atm-detection', label: 'ATM Defense & Breaking AI', icon: ShieldAlert, badge: '🏧 98%' },
     { to: '/shooting-detection', label: 'Shooting & Weapon AI', icon: Crosshair, badge: '🎯 NEW' },
@@ -37,10 +30,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeThreatCount = 4 }) => {
     { to: '/monitoring', label: 'Live Monitoring', icon: Tv, badge: 'LIVE' },
     { to: '/cameras', label: 'CCTV / Cameras', icon: Camera },
     { to: '/image-analysis', label: 'Image Analysis', icon: Image },
-    { to: '/incidents', label: 'Incidents & Threats', icon: AlertTriangle, threatBadge: activeThreatCount },
-    { to: '/zones', label: 'Restricted Zones', icon: Layers },
-    { to: '/analytics', label: 'Heatmaps & Analytics', icon: BarChart3 },
-    { to: '/models', label: 'AI Model Hub', icon: Cpu },
     { to: '/settings', label: 'Settings', icon: Settings },
   ];
 
@@ -74,12 +63,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeThreatCount = 4 }) => {
                   {item.badge}
                 </span>
               )}
-
-              {item.threatBadge !== undefined && item.threatBadge > 0 && (
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-red-500/20 border border-red-500/40 text-red-400 font-mono font-bold animate-pulse">
-                  {item.threatBadge} ALERTS
-                </span>
-              )}
             </NavLink>
           );
         })}
@@ -93,7 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeThreatCount = 4 }) => {
         </div>
         <div className="flex justify-between items-center text-slate-400">
           <span>ACCURACY</span>
-          <span className="text-cyan-400 font-bold">87.38% (8 cls)</span>
+          <span className="text-cyan-400 font-bold">87.02% (9 cls)</span>
         </div>
         <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
           <div className="bg-gradient-to-r from-cyan-500 to-blue-500 h-full w-[87%]" />
