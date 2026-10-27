@@ -13,17 +13,6 @@ except Exception:
 
 # Whitelisted Normal Household & Table Objects
 OBJECT_CATEGORIES = {
-    # Firearms & Weapons
-    "gun": "weapon",
-    "handgun": "weapon",
-    "pistol": "weapon",
-    "rifle": "weapon",
-    "shotgun": "weapon",
-    "automatic rifle": "weapon",
-    "smg": "weapon",
-    "sniper": "weapon",
-    "firearm": "weapon",
-
     # Electronics & Devices
     "laptop": "electronics",
     "cell phone": "electronics",
@@ -70,7 +59,6 @@ class YOLOv11Detector:
         self.frame_counter = 0
         self.fire_detector = None
         self.cached_fire_info = {"is_fire": False, "fire_confidence": 0.0, "no_fire_confidence": 100.0, "boxes": []}
-        self._cached_weapon_objects = []
         self._init_models()
 
     def _init_models(self):
@@ -113,25 +101,6 @@ class YOLOv11Detector:
         except Exception as e:
             print(f"[YOLOv11 Detector] Fire detector import notice: {e}")
             self.fire_detector = None
-
-        # Initialize Neural Gun & Firearm Detector
-        try:
-            from ultralytics import YOLO
-            weapon_model_candidates = [
-                os.path.join(root_dir, "models", "best_weapon_detector.pt"),
-                os.path.join(root_dir, "models", "best_shooting_weapon_detector.pt"),
-                "models/best_weapon_detector.pt"
-            ]
-            self.weapon_model = None
-            for w_cand in weapon_model_candidates:
-                if os.path.exists(w_cand):
-                    print(f"[YOLOv11 Detector] Initializing Neural Gun Detector from {w_cand}...")
-                    self.weapon_model = YOLO(w_cand)
-                    print(f"[YOLOv11 Detector] [OK] Gun detector ready with classes: {self.weapon_model.names}")
-                    break
-        except Exception as e:
-            print(f"[YOLOv11 Detector] Gun detector load notice: {e}")
-            self.weapon_model = None
 
     def _detect_fire(self, frame: np.ndarray, imgsz: int = 320) -> Dict[str, Any]:
         """
@@ -222,46 +191,7 @@ class YOLOv11Detector:
                                     "bbox": [bx, by, bw, bh]
                                 })
 
-                # Run Neural Gun & Firearm Detection (optimized at 320px and every 3rd frame on CPU to eliminate lag)
-                if self.weapon_model is not None:
-                    if self.frame_counter % 3 == 0 or not self._cached_weapon_objects:
-                        try:
-                            self._cached_weapon_objects = []
-                            w_res = self.weapon_model(frame, imgsz=min(imgsz, 320), conf=0.50, verbose=False)
-                            for r in w_res:
-                                for b in r.boxes:
-                                    cls_id = int(b.cls[0])
-                                    w_raw = self.weapon_model.names.get(cls_id, "Gun").lower()
-                                    w_conf = float(b.conf[0])
-                                    wx1, wy1, wx2, wy2 = map(int, b.xyxy[0].tolist())
-                                    wbx = max(0, wx1)
-                                    wby = max(0, wy1)
-                                    wbw = min(w - wbx, max(1, wx2 - wx1))
-                                    wbh = min(h - wby, max(1, wy2 - wy1))
-
-                                    # Filter extreme degenerate slit lines (e.g. razor-thin shelf line across wall)
-                                    if (wbw / max(1, wbh) > 12.0) or (wbh / max(1, wbw) > 12.0) or (wbw * wbh < 100):
-                                        continue
-
-                                    # Specifically filter whole-room architectural background artifacts
-                                    if (wbw >= w * 0.70 and wbh >= h * 0.70) and w_conf < 0.65:
-                                        continue
-
-                                    norm_label = "gun" if any(k in w_raw for k in ["gun", "handgun", "pistol", "rifle", "shotgun", "smg", "sniper", "firearm", "bazooka", "grenade"]) else w_raw
-                                    self._cached_weapon_objects.append({
-                                        "label": norm_label,
-                                        "category": "weapon",
-                                        "confidence": round(w_conf, 3),
-                                        "bbox": [wbx, wby, wbw, wbh],
-                                        "is_weapon": True
-                                    })
-                        except Exception as e:
-                            print(f"[YOLOv11 Detector] Weapon inference notice: {e}")
-
-                    # Append cached weapon detections
-                    objects.extend(self._cached_weapon_objects)
-
-                # Perform Spatial Person-Object Association (e.g. person holding phone, laptop, or gun)
+                # Perform Spatial Person-Object Association (e.g. person holding phone, laptop)
                 self._associate_person_objects(people, objects)
 
                 # Fire & Flame Recognition: Strictly execute ONLY when explicitly requested (detect_fire=True)
