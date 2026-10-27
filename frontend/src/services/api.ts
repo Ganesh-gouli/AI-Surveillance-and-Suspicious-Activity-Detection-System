@@ -163,5 +163,14 @@ export const api = {
       if (res.ok) return await res.json();
     } catch (e) {}
     return [];
+  },
+
+  async getAlgorithmBenchmarks(): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/models/benchmarks`);
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return null;
   }
 };
+

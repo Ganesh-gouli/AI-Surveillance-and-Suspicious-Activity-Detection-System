@@ -59,6 +59,12 @@ runs/
 results/*.mp4
 results/*.jpg
 results/*.png
+!results/algorithm_accuracy_benchmark.png
+!results/accuracy_vs_latency_frontier.png
+!results/false_alarm_reduction_comparison.png
+!results/domain_specific_algorithm_comparison.png
+!results/model_comparison_radar.png
+!results/confusion_matrix_shooting.png
 results/detection_events/
 results/processed_videos/
 
