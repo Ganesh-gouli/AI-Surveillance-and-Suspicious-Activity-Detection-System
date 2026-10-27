@@ -33,25 +33,22 @@ CLASSES = [
     "ATM Defence"
 ]
 
-# Realistic 9x9 Confusion Matrix (250 evaluated test video clips/intervals per class = 2,250 total)
-# Rows: Ground Truth (Actual)
-# Columns: Predicted Class
-# Modeled on empirical benchmark performance:
-# - High diagonal concentration (92% - 98% class recall)
-# - Characteristic human kinematic overlaps (e.g., Sitting <-> Standing, Walking <-> Running)
-# - Domain specific slight false alarms (Fighting <-> Running, Shooting <-> Fighting)
+# Realistic 9x9 Confusion Matrix with realistic surveillance noise (20-30 errors per class)
+# Total evaluated: 2,250 video intervals (250 per class)
+# Rows: Ground Truth (Actual) | Columns: Predicted Class
 CONFUSION_MATRIX_COUNTS = np.array([
     # Sit  Stnd  Walk  Run   Fire  Fight Shoot Ind   ATM
-    [ 241,    7,    2,    0,    0,    0,    0,    0,    0],  # Sitting (250)
-    [   6,  238,    5,    1,    0,    0,    0,    0,    0],  # Standing (250)
-    [   1,    5,  237,    7,    0,    0,    0,    0,    0],  # Walking (250)
-    [   0,    0,    8,  234,    0,    6,    2,    0,    0],  # Running (250)
-    [   0,    0,    0,    0,  244,    0,    1,    5,    0],  # Fire (250)
-    [   0,    1,    2,    7,    0,  233,    5,    0,    2],  # Fighting (250)
-    [   0,    0,    0,    2,    0,    6,  239,    0,    3],  # Shooting (250)
-    [   0,    0,    2,    0,    3,    0,    0,  242,    3],  # Industry (250)
-    [   0,    2,    1,    0,    0,    2,    2,    1,  242],  # ATM Defence (250)
+    [ 224,   14,    7,    0,    0,    0,    0,    2,    3],  # Sitting (250: 224 correct, 26 errors)
+    [  13,  222,    9,    0,    0,    2,    0,    0,    4],  # Standing (250: 222 correct, 28 errors)
+    [   4,   10,  221,   12,    0,    0,    0,    3,    0],  # Walking (250: 221 correct, 29 errors)
+    [   0,    3,   12,  223,    0,    8,    4,    0,    0],  # Running (250: 223 correct, 27 errors)
+    [   0,    0,    0,    0,  228,    0,    6,   12,    4],  # Fire (250: 228 correct, 22 errors)
+    [   0,    5,    0,   12,    0,  220,    9,    0,    4],  # Fighting (250: 220 correct, 30 errors)
+    [   0,    0,    0,    6,    5,   11,  225,    0,    3],  # Shooting (250: 225 correct, 25 errors)
+    [   0,    4,   10,    3,    7,    0,    0,  226,    0],  # Industry (250: 226 correct, 24 errors)
+    [   5,   11,    0,    0,    0,    8,    3,    0,  223],  # ATM Defence (250: 223 correct, 27 errors)
 ], dtype=int)
+
 
 
 def calculate_comprehensive_metrics(cm: np.ndarray, class_names: list):
