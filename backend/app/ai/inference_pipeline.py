@@ -140,14 +140,36 @@ class SentinelInferencePipeline:
                     )
                     if fire_alert:
                         alerts_generated.append(fire_alert)
+
+            # Weapon Alert Tracking and Critical Threat Dispatch
+            weapon_info = getattr(self.detector, 'cached_weapon_info', {"is_weapon": False, "confidence": 0.0, "weapon_type": "", "boxes": []})
+            if weapon_info.get("is_weapon", False) and weapon_info.get("confidence", 0) >= 15.0:
+                w_type_name = str(weapon_info.get("weapon_type", "WEAPON")).upper()
+                weapon_threat = {
+                    "threat_type": "WEAPON_DETECTED",
+                    "severity": "CRITICAL",
+                    "activity": f"ARMED THREAT: {w_type_name}",
+                    "confidence": float(weapon_info.get("confidence", 90.0)),
+                    "details": f"Critical firearm/weapon threat detected! Confirmed weapon: {weapon_info.get('weapon_type', 'Firearm')}."
+                }
+                weapon_alert = self.alert_engine.process_threat(
+                    camera_id=camera_id,
+                    camera_location=camera_location,
+                    threat_info=weapon_threat,
+                    track_id=9998
+                )
+                if weapon_alert:
+                    alerts_generated.append(weapon_alert)
             
             # Format scene objects for API response
             for obj in scene_objects:
                 ox, oy, ow, oh = obj["bbox"]
+                raw_c = float(obj.get("confidence", 0.0))
+                calc_conf = round(raw_c * 100.0, 1) if raw_c <= 1.0 else round(raw_c, 1)
                 objects_results.append({
                     "label": obj["label"],
                     "category": obj.get("category", "general_object"),
-                    "confidence": round(obj["confidence"] * 100.0, 1),
+                    "confidence": calc_conf,
                     "bbox": {
                         "x": float(ox),
                         "y": float(oy),
@@ -291,6 +313,7 @@ class SentinelInferencePipeline:
             "objects_count": len(objects_results),
             "objects": objects_results,
             "fire": fire_info,
+            "weapon": getattr(self.detector, 'cached_weapon_info', {"is_weapon": False, "confidence": 0.0, "weapon_type": "", "boxes": []}),
             "active_alerts": alerts_generated,
             "night_vision": night_vision_telemetry
         }

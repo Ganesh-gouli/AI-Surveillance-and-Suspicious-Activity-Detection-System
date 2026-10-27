@@ -102,6 +102,16 @@ class YOLOv11Detector:
             print(f"[YOLOv11 Detector] Fire detector import notice: {e}")
             self.fire_detector = None
 
+        # Initialize High-Precision Weapon & Firearm Detector
+        try:
+            from .weapon_detector import global_weapon_detector
+            self.weapon_detector = global_weapon_detector
+            print("[YOLOv11 Detector] [OK] Successfully linked real-time Weapon & Firearm Detector!")
+        except Exception as e:
+            print(f"[YOLOv11 Detector] Weapon detector import notice: {e}")
+            self.weapon_detector = None
+        self.cached_weapon_info = {"is_weapon": False, "confidence": 0.0, "weapon_type": "", "boxes": []}
+
     def _detect_fire(self, frame: np.ndarray, imgsz: int = 320) -> Dict[str, Any]:
         """
         Executes real-time flame and fire hazard recognition with YOLO bounding boxes.
@@ -191,7 +201,23 @@ class YOLOv11Detector:
                                     "bbox": [bx, by, bw, bh]
                                 })
 
-                # Perform Spatial Person-Object Association (e.g. person holding phone, laptop)
+                # Weapon & Firearm Recognition: Dual-model ensemble + Class-Agnostic NMS + EMA Smoothing
+                if self.weapon_detector is not None:
+                    try:
+                        if self.frame_counter % 2 == 0 or self.cached_weapon_info.get("is_weapon", False) or self.frame_counter <= 2:
+                            is_w, w_conf, w_type, w_objs = self.weapon_detector.detect_weapons(frame, conf_thresh=0.18, imgsz=512)
+                            self.cached_weapon_info = {
+                                "is_weapon": is_w,
+                                "confidence": w_conf,
+                                "weapon_type": w_type,
+                                "boxes": w_objs
+                            }
+                        for w_obj in self.cached_weapon_info.get("boxes", []):
+                            objects.append(w_obj)
+                    except Exception as we:
+                        print(f"[YOLOv11 Detector] Weapon detection error: {we}")
+
+                # Perform Spatial Person-Object Association (e.g. person holding phone, laptop, weapon)
                 self._associate_person_objects(people, objects)
 
                 # Fire & Flame Recognition: Smooth, low-latency execution (288p fast pass)
@@ -222,6 +248,22 @@ class YOLOv11Detector:
                         })
             except Exception:
                 pass
+
+        # Weapon detection in fallback
+        if self.weapon_detector is not None:
+            try:
+                if self.frame_counter % 2 == 0 or self.cached_weapon_info.get("is_weapon", False) or self.frame_counter <= 2:
+                    is_w, w_conf, w_type, w_objs = self.weapon_detector.detect_weapons(frame, conf_thresh=0.18, imgsz=512)
+                    self.cached_weapon_info = {
+                        "is_weapon": is_w,
+                        "confidence": w_conf,
+                        "weapon_type": w_type,
+                        "boxes": w_objs
+                    }
+                for w_obj in self.cached_weapon_info.get("boxes", []):
+                    objects.append(w_obj)
+            except Exception as we:
+                print(f"[YOLOv11 Detector] Weapon detection fallback error: {we}")
 
         if detect_fire:
             if self.frame_counter % 2 == 0 or self.cached_fire_info.get("is_fire", False) or self.frame_counter <= 2:

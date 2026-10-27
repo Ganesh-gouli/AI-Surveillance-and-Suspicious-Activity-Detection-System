@@ -138,25 +138,62 @@ export const CameraCanvasOverlay: React.FC<CameraCanvasOverlayProps> = ({
           const ow = obj.bbox.width * scaleX;
           const oh = obj.bbox.height * scaleY;
 
-          const colorCfg = CATEGORY_COLORS[obj.category] || CATEGORY_COLORS.general_object;
+          const isWeapon = obj.is_weapon || obj.category === 'weapon';
+          const colorCfg = isWeapon 
+            ? { stroke: '#ef4444', fill: 'rgba(239, 68, 68, 0.22)' }
+            : (CATEGORY_COLORS[obj.category] || CATEGORY_COLORS.general_object);
 
           ctx.save();
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = isWeapon ? 2.5 : 1.5;
           ctx.strokeStyle = colorCfg.stroke;
           ctx.fillStyle = colorCfg.fill;
           ctx.fillRect(ox, oy, ow, oh);
           ctx.strokeRect(ox, oy, ow, oh);
 
-          ctx.font = 'bold 10px JetBrains Mono, monospace';
-          const objText = `${obj.label.toUpperCase()} ${obj.confidence.toFixed(0)}%`;
-          const tagW = ctx.measureText(objText).width + 8;
+          // Tactical Reticle corner crosshairs for weapons
+          if (isWeapon) {
+            const cornerLen = Math.min(18, Math.min(ow, oh) * 0.3);
+            ctx.lineWidth = 3.0;
+            ctx.strokeStyle = '#f87171';
+            // Top-left
+            ctx.beginPath();
+            ctx.moveTo(ox, oy + cornerLen);
+            ctx.lineTo(ox, oy);
+            ctx.lineTo(ox + cornerLen, oy);
+            ctx.stroke();
+            // Top-right
+            ctx.beginPath();
+            ctx.moveTo(ox + ow - cornerLen, oy);
+            ctx.lineTo(ox + ow, oy);
+            ctx.lineTo(ox + ow, oy + cornerLen);
+            ctx.stroke();
+            // Bottom-left
+            ctx.beginPath();
+            ctx.moveTo(ox, oy + oh - cornerLen);
+            ctx.lineTo(ox, oy + oh);
+            ctx.lineTo(ox + cornerLen, oy + oh);
+            ctx.stroke();
+            // Bottom-right
+            ctx.beginPath();
+            ctx.moveTo(ox + ow - cornerLen, oy + oh);
+            ctx.lineTo(ox + ow, oy + oh);
+            ctx.lineTo(ox + ow, oy + oh - cornerLen);
+            ctx.stroke();
+          }
+
+          ctx.font = 'bold 11px JetBrains Mono, monospace';
+          const objText = isWeapon 
+            ? `⚠ ${obj.label.toUpperCase()} ${obj.confidence.toFixed(0)}%`
+            : `${obj.label.toUpperCase()} ${obj.confidence.toFixed(0)}%`;
+          const tagW = ctx.measureText(objText).width + 10;
+          const tagH = 18;
           
-          ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-          ctx.fillRect(ox, Math.max(0, oy - 16), tagW, 16);
+          ctx.fillStyle = isWeapon ? 'rgba(220, 38, 38, 0.95)' : 'rgba(15, 23, 42, 0.88)';
+          ctx.fillRect(ox, Math.max(0, oy - tagH), tagW, tagH);
           ctx.strokeStyle = colorCfg.stroke;
-          ctx.strokeRect(ox, Math.max(0, oy - 16), tagW, 16);
-          ctx.fillStyle = colorCfg.stroke;
-          ctx.fillText(objText, ox + 4, Math.max(0, oy - 16) + 12);
+          ctx.strokeRect(ox, Math.max(0, oy - tagH), tagW, tagH);
+          ctx.fillStyle = isWeapon ? '#ffffff' : colorCfg.stroke;
+          ctx.fillText(objText, ox + 5, Math.max(0, oy - tagH) + 13);
           ctx.restore();
         });
       }

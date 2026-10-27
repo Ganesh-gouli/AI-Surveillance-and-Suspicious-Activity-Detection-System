@@ -30,6 +30,7 @@ export interface DetectedObject {
   category: string;
   confidence: number;
   bbox: BoundingBox;
+  is_weapon?: boolean;
 }
 
 export interface PoseLandmark {

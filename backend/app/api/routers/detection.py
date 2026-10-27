@@ -34,6 +34,7 @@ async def analyze_image(file: UploadFile = File(...)):
             "objects_count": result.get("objects_count", 0),
             "objects": result.get("objects", []),
             "fire": result.get("fire", {"is_fire": False, "fire_confidence": 0.0, "boxes": []}),
+            "weapon": result.get("weapon", {"is_weapon": False, "confidence": 0.0, "weapon_type": "", "boxes": []}),
             "active_alerts": result.get("active_alerts", []),
             "suspicious_patterns_detected": [p for p in result["people"] if p["is_suspicious"]],
             "ai_model": "YOLOv11-Nano + YOLOv8 Fire Detector + best_human_activity_v2.keras",

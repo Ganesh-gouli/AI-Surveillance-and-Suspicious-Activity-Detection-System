@@ -42,6 +42,17 @@ export const ImageAnalysis: React.FC = () => {
     fire_confidence: 0,
     boxes: []
   });
+  const [weaponData, setWeaponData] = useState<{
+    is_weapon: boolean;
+    confidence: number;
+    weapon_type: string;
+    boxes: Array<any>;
+  }>({
+    is_weapon: false,
+    confidence: 0,
+    weapon_type: '',
+    boxes: []
+  });
   const [showObjectsOverlay, setShowObjectsOverlay] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -68,6 +79,7 @@ export const ImageAnalysis: React.FC = () => {
           setDetections(data.detections || []);
           setSceneObjects(data.objects || []);
           setFireData(data.fire || { is_fire: false, fire_confidence: 0, boxes: [] });
+          setWeaponData(data.weapon || { is_weapon: false, confidence: 0, weapon_type: '', boxes: [] });
         }
       } catch (err) {
         console.error("Error analyzing image:", err);
@@ -247,6 +259,34 @@ export const ImageAnalysis: React.FC = () => {
               </div>
             </div>
 
+            {/* Weapon & Firearm Threat Alert Status Banner */}
+            <div className={`p-4 rounded-xl border font-mono text-xs transition-all ${
+              weaponData.is_weapon
+                ? 'bg-red-950/70 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.5)]'
+                : 'bg-slate-900/40 border-slate-800'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <AlertTriangle className={`w-5 h-5 ${weaponData.is_weapon ? 'text-red-400 animate-pulse' : 'text-slate-500'}`} />
+                  <div>
+                    <span className={`font-bold block ${weaponData.is_weapon ? 'text-red-300 text-sm tracking-wide' : 'text-slate-400'}`}>
+                      {weaponData.is_weapon ? `⚠ WEAPON DETECTED: ${weaponData.weapon_type.toUpperCase()}` : 'WEAPON MONITOR: SCENE CLEAR'}
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      {weaponData.is_weapon
+                        ? `Fine-tuned neural weapon detector verified firearm threat • Level: CRITICAL`
+                        : 'No firearms, handguns, rifles, or bladed weapons detected'}
+                    </span>
+                  </div>
+                </div>
+                {weaponData.is_weapon && (
+                  <span className="px-3 py-1 rounded bg-red-600 text-white font-bold text-xs shadow-[0_0_15px_rgba(239,68,68,0.7)] animate-pulse">
+                    CONFIDENCE: {weaponData.confidence}%
+                  </span>
+                )}
+              </div>
+            </div>
+
             {/* Scene Objects Summary Bar */}
             {sceneObjects.length > 0 && (
               <div className="soc-panel p-3.5 rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
@@ -255,11 +295,21 @@ export const ImageAnalysis: React.FC = () => {
                   <span>YOLOv11 DETECTED SCENE OBJECTS ({sceneObjects.length}):</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {sceneObjects.map((obj, i) => (
-                    <span key={i} className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-300 text-[11px]">
-                      {obj.label} ({obj.confidence.toFixed(0)}%)
-                    </span>
-                  ))}
+                  {sceneObjects.map((obj, i) => {
+                    const isW = obj.is_weapon || obj.category === 'weapon';
+                    return (
+                      <span
+                        key={i}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                          isW
+                            ? 'bg-red-950/80 border-red-500 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.4)]'
+                            : 'bg-purple-950/60 border-purple-500/30 text-purple-300'
+                        }`}
+                      >
+                        {isW ? `⚠ ${obj.label}` : obj.label} ({obj.confidence.toFixed(0)}%)
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}

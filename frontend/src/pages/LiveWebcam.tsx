@@ -153,6 +153,18 @@ export const LiveWebcam: React.FC = () => {
     boxes: []
   });
 
+  const [weaponData, setWeaponData] = useState<{
+    is_weapon: boolean;
+    confidence: number;
+    weapon_type: string;
+    boxes: Array<any>;
+  }>({
+    is_weapon: false,
+    confidence: 0,
+    weapon_type: '',
+    boxes: []
+  });
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -336,6 +348,21 @@ export const LiveWebcam: React.FC = () => {
                 no_fire_confidence: 100,
                 continuous_fire_alert: false,
                 consecutive_fire_frames: 0,
+                boxes: []
+              });
+            }
+
+            // Real-time Weapon & Firearm Threat Telemetry
+            if (data.weapon) {
+              setWeaponData(data.weapon);
+              if (data.weapon.is_weapon && soundEnabled) {
+                audioService.playCriticalAlarm();
+              }
+            } else {
+              setWeaponData({
+                is_weapon: false,
+                confidence: 0,
+                weapon_type: '',
                 boxes: []
               });
             }
@@ -914,6 +941,12 @@ export const LiveWebcam: React.FC = () => {
                     <span>{fireData.is_fire ? `FIRE ${fireData.fire_confidence}%` : 'NO FIRE'}</span>
                   </span>
                 )}
+                <span className={`px-2 py-1 rounded border text-xs font-mono font-bold flex items-center space-x-1 ${
+                  weaponData.is_weapon ? 'bg-red-950/90 border-red-500 text-red-300 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.5)]' : 'bg-black/70 border-slate-700 text-slate-400'
+                }`}>
+                  <ShieldAlert className="w-3 h-3 text-red-400" />
+                  <span>{weaponData.is_weapon ? `WEAPON: ${weaponData.weapon_type.toUpperCase()} ${weaponData.confidence}%` : 'NO WEAPONS'}</span>
+                </span>
                 <span className="px-2 py-1 rounded bg-black/70 border border-slate-700 text-xs font-mono text-cyan-400">
                   {fps} FPS • Latency: {latency}ms
                 </span>
@@ -930,6 +963,20 @@ export const LiveWebcam: React.FC = () => {
                 </div>
                 <div className="mt-1.5 px-4 py-1 bg-black/90 rounded-full border border-red-500/50 text-red-300 text-xs font-mono shadow-lg">
                   Continuous Flame Hazard ({fireData.consecutive_fire_frames} frames) • Conf: {fireData.fire_confidence}% • Siren Active
+                </div>
+              </div>
+            )}
+
+            {/* Critical Weapon & Firearm Threat Alert Banner */}
+            {weaponData.is_weapon && (
+              <div className="absolute inset-x-0 top-16 z-50 flex flex-col items-center justify-center p-4 animate-bounce">
+                <div className="bg-red-600/95 text-white font-mono font-black text-xl px-8 py-3 rounded-2xl border-2 border-red-400 shadow-[0_0_50px_rgba(239,68,68,1)] flex items-center space-x-3">
+                  <AlertTriangle className="w-8 h-8 text-yellow-300 animate-pulse" />
+                  <span>⚠ CRITICAL WEAPON DETECTED: {weaponData.weapon_type.toUpperCase()} ⚠</span>
+                  <AlertTriangle className="w-8 h-8 text-yellow-300 animate-pulse" />
+                </div>
+                <div className="mt-1.5 px-4 py-1 bg-black/90 rounded-full border border-red-500/50 text-red-300 text-xs font-mono shadow-lg">
+                  Active Firearm Threat ({weaponData.weapon_type}) • Confidence: {weaponData.confidence}% • Severity: CRITICAL
                 </div>
               </div>
             )}
