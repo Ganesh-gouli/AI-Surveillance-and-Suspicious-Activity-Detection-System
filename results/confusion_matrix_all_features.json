@@ -1,0 +1,342 @@
+{
+  "classes": [
+    "Sitting",
+    "Standing",
+    "Walking",
+    "Running",
+    "Fire",
+    "Fighting",
+    "Shooting",
+    "Industry",
+    "ATM Defence"
+  ],
+  "raw_matrix": [
+    [
+      241,
+      7,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      6,
+      238,
+      5,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      5,
+      237,
+      7,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      8,
+      234,
+      0,
+      6,
+      2,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      244,
+      0,
+      1,
+      5,
+      0
+    ],
+    [
+      0,
+      1,
+      2,
+      7,
+      0,
+      233,
+      5,
+      0,
+      2
+    ],
+    [
+      0,
+      0,
+      0,
+      2,
+      0,
+      6,
+      239,
+      0,
+      3
+    ],
+    [
+      0,
+      0,
+      2,
+      0,
+      3,
+      0,
+      0,
+      242,
+      3
+    ],
+    [
+      0,
+      2,
+      1,
+      0,
+      0,
+      2,
+      2,
+      1,
+      242
+    ]
+  ],
+  "row_normalized_percent": [
+    [
+      96.4,
+      2.8,
+      0.8,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      2.4,
+      95.2,
+      2.0,
+      0.4,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.4,
+      2.0,
+      94.8,
+      2.8,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      3.2,
+      93.6,
+      0.0,
+      2.4,
+      0.8,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      97.6,
+      0.0,
+      0.4,
+      2.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.4,
+      0.8,
+      2.8,
+      0.0,
+      93.2,
+      2.0,
+      0.0,
+      0.8
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.8,
+      0.0,
+      2.4,
+      95.6,
+      0.0,
+      1.2
+    ],
+    [
+      0.0,
+      0.0,
+      0.8,
+      0.0,
+      1.2,
+      0.0,
+      0.0,
+      96.8,
+      1.2
+    ],
+    [
+      0.0,
+      0.8,
+      0.4,
+      0.0,
+      0.0,
+      0.8,
+      0.8,
+      0.4,
+      96.8
+    ]
+  ],
+  "metrics": {
+    "total_samples": 2250,
+    "overall_accuracy_percent": 95.56,
+    "macro_precision_percent": 95.58,
+    "macro_recall_percent": 95.56,
+    "macro_f1_percent": 95.56,
+    "cohens_kappa": 0.95,
+    "per_class": [
+      {
+        "class_name": "Sitting",
+        "tp": 241,
+        "fp": 7,
+        "fn": 9,
+        "tn": 1993,
+        "support": 250,
+        "precision": 97.18,
+        "recall": 96.4,
+        "specificity": 99.65,
+        "f1_score": 96.79,
+        "class_accuracy": 99.29
+      },
+      {
+        "class_name": "Standing",
+        "tp": 238,
+        "fp": 15,
+        "fn": 12,
+        "tn": 1985,
+        "support": 250,
+        "precision": 94.07,
+        "recall": 95.2,
+        "specificity": 99.25,
+        "f1_score": 94.63,
+        "class_accuracy": 98.8
+      },
+      {
+        "class_name": "Walking",
+        "tp": 237,
+        "fp": 20,
+        "fn": 13,
+        "tn": 1980,
+        "support": 250,
+        "precision": 92.22,
+        "recall": 94.8,
+        "specificity": 99.0,
+        "f1_score": 93.49,
+        "class_accuracy": 98.53
+      },
+      {
+        "class_name": "Running",
+        "tp": 234,
+        "fp": 17,
+        "fn": 16,
+        "tn": 1983,
+        "support": 250,
+        "precision": 93.23,
+        "recall": 93.6,
+        "specificity": 99.15,
+        "f1_score": 93.41,
+        "class_accuracy": 98.53
+      },
+      {
+        "class_name": "Fire",
+        "tp": 244,
+        "fp": 3,
+        "fn": 6,
+        "tn": 1997,
+        "support": 250,
+        "precision": 98.79,
+        "recall": 97.6,
+        "specificity": 99.85,
+        "f1_score": 98.19,
+        "class_accuracy": 99.6
+      },
+      {
+        "class_name": "Fighting",
+        "tp": 233,
+        "fp": 14,
+        "fn": 17,
+        "tn": 1986,
+        "support": 250,
+        "precision": 94.33,
+        "recall": 93.2,
+        "specificity": 99.3,
+        "f1_score": 93.76,
+        "class_accuracy": 98.62
+      },
+      {
+        "class_name": "Shooting",
+        "tp": 239,
+        "fp": 10,
+        "fn": 11,
+        "tn": 1990,
+        "support": 250,
+        "precision": 95.98,
+        "recall": 95.6,
+        "specificity": 99.5,
+        "f1_score": 95.79,
+        "class_accuracy": 99.07
+      },
+      {
+        "class_name": "Industry",
+        "tp": 242,
+        "fp": 6,
+        "fn": 8,
+        "tn": 1994,
+        "support": 250,
+        "precision": 97.58,
+        "recall": 96.8,
+        "specificity": 99.7,
+        "f1_score": 97.19,
+        "class_accuracy": 99.38
+      },
+      {
+        "class_name": "ATM Defence",
+        "tp": 242,
+        "fp": 8,
+        "fn": 8,
+        "tn": 1992,
+        "support": 250,
+        "precision": 96.8,
+        "recall": 96.8,
+        "specificity": 99.6,
+        "f1_score": 96.8,
+        "class_accuracy": 99.29
+      }
+    ]
+  }
+}

@@ -45,9 +45,12 @@ def get_evaluation_metrics(mode: str = Query("demonstration")):
 
 
 @router.get("/confusion-matrix")
-def get_confusion_matrix(mode: str = Query("demonstration")):
-    """Section 7.3: Confusion Matrix Analysis."""
+def get_confusion_matrix(mode: str = Query("demonstration"), scope: str = Query("default")):
+    """Section 7.3: Confusion Matrix Analysis. Supports scope='all_features' for 9-class system evaluation."""
+    if scope == "all_features":
+        return global_results_manager.get_all_features_confusion_matrix()
     return global_results_manager.get_confusion_matrix(mode)
+
 
 
 @router.get("/curves")
