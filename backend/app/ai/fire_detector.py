@@ -89,6 +89,10 @@ class FireDetector:
             except Exception as e:
                 print(f"[FireDetector] Could not load YOLO model from {self.yolo_box_path}: {e}")
 
+        # Smooth fire tracking across frames to eliminate jitter and flickering
+        self.smoothed_fire_boxes: List[Dict[str, Any]] = []
+        self.no_fire_counter: int = 0
+
     def load_weights(self, path: str):
         if os.path.exists(path):
             try:
@@ -117,10 +121,10 @@ class FireDetector:
             g = crop[:, :, 1]
             b = crop[:, :, 0]
 
-            # 1. Peak luminance check: flames are incandescent light emitters (90th percentile V >= 120, R >= 120)
+            # 1. Peak luminance check: flames are incandescent light emitters (90th percentile V >= 125, R >= 125)
             v_90 = float(np.percentile(v, 90))
             r_90 = float(np.percentile(r, 90))
-            if v_90 < 120.0 or r_90 < 120.0:
+            if v_90 < 125.0 or r_90 < 125.0:
                 return False
 
             # 2. Flame chromaticity signature (Red dominance over Blue and warm glow)
@@ -129,22 +133,94 @@ class FireDetector:
             b_f = b.astype(np.float32)
             v_f = v.astype(np.float32)
 
-            flame_pixels = (r_f > 110.0) & (r_f > b_f + 18.0) & (v_f > 110.0) & (r_f >= g_f * 0.75)
+            flame_pixels = (r_f > 115.0) & (r_f > b_f + 20.0) & (v_f > 115.0) & (r_f >= g_f * 0.75)
             flame_ratio = float(np.mean(flame_pixels))
 
-            # At least 5% of candidate box must be incandescent flame core
-            if flame_ratio < 0.05:
+            # At least 6% of candidate box must be incandescent flame core
+            if flame_ratio < 0.06:
                 return False
 
             return True
         except Exception:
             return False
 
+    def _apply_nms_and_smoothing(self, candidate_boxes: List[Dict[str, Any]], iou_thresh: float = 0.35) -> List[Dict[str, Any]]:
+        """
+        Suppresses redundant overlapping fire bounding boxes (NMS) and applies Exponential Moving Average
+        (EMA) coordinate smoothing across consecutive frames for rock-solid, jitter-free visual tracking.
+        """
+        if not candidate_boxes:
+            self.no_fire_counter += 1
+            if self.no_fire_counter >= 3:
+                self.smoothed_fire_boxes = []
+            return []
+
+        self.no_fire_counter = 0
+
+        # 1. Non-Maximum Suppression (NMS) to eliminate duplicate/cluttered fire boxes
+        sorted_boxes = sorted(candidate_boxes, key=lambda b: b.get("confidence", 0), reverse=True)
+        kept_boxes = []
+        while sorted_boxes:
+            best = sorted_boxes.pop(0)
+            kept_boxes.append(best)
+            remaining = []
+            for b in sorted_boxes:
+                xx1 = max(best["x1"], b["x1"])
+                yy1 = max(best["y1"], b["y1"])
+                xx2 = min(best["x2"], b["x2"])
+                yy2 = min(best["y2"], b["y2"])
+                w = max(0, xx2 - xx1)
+                h = max(0, yy2 - yy1)
+                inter = w * h
+                area1 = best["width"] * best["height"]
+                area2 = b["width"] * b["height"]
+                union = area1 + area2 - inter
+                iou = inter / union if union > 0 else 0
+                if iou < iou_thresh:
+                    remaining.append(b)
+            sorted_boxes = remaining
+
+        # 2. Temporal Box Smoothing (EMA alpha = 0.45) to eliminate jitter, jumping, and lag
+        final_boxes = []
+        for box in kept_boxes:
+            matched_prev = None
+            for prev in self.smoothed_fire_boxes:
+                cx1, cy1 = (box["x1"] + box["x2"]) / 2, (box["y1"] + box["y2"]) / 2
+                cx2, cy2 = (prev["x1"] + prev["x2"]) / 2, (prev["y1"] + prev["y2"]) / 2
+                dist = ((cx1 - cx2) ** 2 + (cy1 - cy2) ** 2) ** 0.5
+                if dist < 70:
+                    matched_prev = prev
+                    break
+
+            if matched_prev:
+                alpha = 0.45
+                sx1 = int(matched_prev["x1"] * (1 - alpha) + box["x1"] * alpha)
+                sy1 = int(matched_prev["y1"] * (1 - alpha) + box["y1"] * alpha)
+                sx2 = int(matched_prev["x2"] * (1 - alpha) + box["x2"] * alpha)
+                sy2 = int(matched_prev["y2"] * (1 - alpha) + box["y2"] * alpha)
+                smoothed_box = {
+                    "x1": sx1,
+                    "y1": sy1,
+                    "x2": sx2,
+                    "y2": sy2,
+                    "width": max(1, sx2 - sx1),
+                    "height": max(1, sy2 - sy1),
+                    "label": box["label"],
+                    "confidence": box["confidence"],
+                    "is_fire": box["is_fire"]
+                }
+                final_boxes.append(smoothed_box)
+            else:
+                final_boxes.append(box)
+
+        self.smoothed_fire_boxes = final_boxes
+        return final_boxes
+
     def detect_boxes_and_classify(
         self,
         frame_bgr: np.ndarray,
-        yolo_conf: float = 0.20,
-        imgsz: int = 384
+        yolo_conf: float = 0.30,
+        imgsz: int = 288
     ) -> Tuple[bool, float, float, List[Dict[str, Any]]]:
         """
         Runs high-speed accurate YOLO bounding box detection with high-luminance flame validation.
@@ -156,10 +232,9 @@ class FireDetector:
 
         h, w = frame_bgr.shape[:2]
         boxes = []
-        fire_box_confidences = []
         smoke_box_confidences = []
 
-        # 1. Run YOLO Bounding Box Detection if available
+        # 1. Run YOLO Bounding Box Detection if available (fast 288p pass)
         if self.yolo_box_model is not None:
             try:
                 results = self.yolo_box_model(frame_bgr, imgsz=imgsz, conf=yolo_conf, verbose=False)
@@ -183,7 +258,6 @@ class FireDetector:
                             box_crop = frame_bgr[by1:by2, bx1:bx2]
                             if not self._is_valid_flame_region(box_crop):
                                 continue
-                            fire_box_confidences.append(conf)
                         else:
                             smoke_box_confidences.append(conf)
 
@@ -201,8 +275,11 @@ class FireDetector:
             except Exception as e:
                 print(f"[FireDetector] YOLO inference notice: {e}")
 
-        # 2. Supplementary check: If YOLO did not yield verified fire boxes, run MobileNetV3 + flame contour localization
-        if not fire_box_confidences:
+        # 2. Apply NMS and temporal EMA smoothing for a single, stable, jitter-free box
+        boxes = self._apply_nms_and_smoothing(boxes, iou_thresh=0.35)
+
+        # 3. Supplementary fallback ONLY if no YOLO model is installed on host
+        if self.yolo_box_model is None and not boxes:
             try:
                 frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 pil_img = Image.fromarray(frame_rgb)
@@ -211,46 +288,20 @@ class FireDetector:
                     logits = self.model(tensor)
                     probs = torch.softmax(logits, dim=1).cpu().numpy()[0]
                 pytorch_fire = float(probs[1])
-                if pytorch_fire >= 0.70 and self._is_valid_flame_region(frame_bgr):
-                    r_f = frame_bgr[:, :, 2].astype(np.float32)
-                    g_f = frame_bgr[:, :, 1].astype(np.float32)
-                    b_f = frame_bgr[:, :, 0].astype(np.float32)
-                    hsv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2HSV)
-                    v_f = hsv[:, :, 2].astype(np.float32)
-                    flame_mask = (r_f > 115.0) & (r_f > b_f + 20.0) & (v_f > 115.0) & (r_f >= g_f * 0.75)
-                    flame_u8 = (flame_mask * 255).astype(np.uint8)
-                    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-                    closed = cv2.morphologyEx(flame_u8, cv2.MORPH_CLOSE, kernel)
-                    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                    min_area = max(80.0, w * h * 0.003)
-                    found_contour = False
-                    for c in contours:
-                        if cv2.contourArea(c) >= min_area:
-                            cx, cy, cw, ch = cv2.boundingRect(c)
-                            box_crop = frame_bgr[cy:cy+ch, cx:cx+cw]
-                            if self._is_valid_flame_region(box_crop):
-                                fire_box_confidences.append(pytorch_fire)
-                                boxes.append({
-                                    "x1": cx, "y1": cy,
-                                    "x2": cx + cw, "y2": cy + ch,
-                                    "width": cw, "height": ch,
-                                    "label": "Fire", "confidence": round(pytorch_fire * 100, 1),
-                                    "is_fire": True
-                                })
-                                found_contour = True
-                    if not found_contour and pytorch_fire >= 0.90:
-                        fire_box_confidences.append(pytorch_fire)
-                        boxes.append({
-                            "x1": int(w * 0.2), "y1": int(h * 0.2),
-                            "x2": int(w * 0.8), "y2": int(h * 0.8),
-                            "width": int(w * 0.6), "height": int(h * 0.6),
-                            "label": "Fire", "confidence": round(pytorch_fire * 100, 1),
-                            "is_fire": True
-                        })
+                if pytorch_fire >= 0.88 and self._is_valid_flame_region(frame_bgr):
+                    boxes.append({
+                        "x1": int(w * 0.2), "y1": int(h * 0.2),
+                        "x2": int(w * 0.8), "y2": int(h * 0.8),
+                        "width": int(w * 0.6), "height": int(h * 0.6),
+                        "label": "Fire", "confidence": round(pytorch_fire * 100, 1),
+                        "is_fire": True
+                    })
             except Exception:
                 pass
 
-        # Integrate detections into probability scores
+        # 4. Integrate detections into probability scores
+        fire_box_confidences = [b["confidence"] / 100.0 for b in boxes if b.get("is_fire", False)]
+
         if fire_box_confidences:
             fire_prob = max(fire_box_confidences)
             is_fire = True

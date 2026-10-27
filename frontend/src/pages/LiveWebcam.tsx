@@ -858,9 +858,9 @@ export const LiveWebcam: React.FC = () => {
                 <div
                   key={`fire-box-${idx}`}
                   style={{ left, top, width, height }}
-                  className={`absolute pointer-events-none border-2 transition-all duration-75 z-20 ${
+                  className={`absolute pointer-events-none border-2 z-20 ${
                     isFireBox
-                      ? 'border-red-500 bg-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-pulse'
+                      ? 'border-red-500 bg-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.7)]'
                       : 'border-yellow-400 bg-yellow-400/15'
                   }`}
                 >
