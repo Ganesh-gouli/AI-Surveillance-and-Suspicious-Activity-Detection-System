@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Project Report Diagrams - AI Surveillance & Suspicious Activity Detection</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f4f6f9;
+      color: #1e293b;
+      padding: 30px;
+      line-height: 1.6;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .header h1 {
+      font-size: 26px;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    .header p {
+      color: #64748b;
+      font-size: 15px;
+    }
+    .tip-box {
+      margin-top: 15px;
+      display: inline-block;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 10px 20px;
+      border-radius: 8px;
+      color: #1d4ed8;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 40px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+    }
+    .card h2 {
+      font-size: 20px;
+      color: #0284c7;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card p.desc {
+      color: #475569;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .img-container {
+      text-align: center;
+      background: #ffffff;
+      padding: 15px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+    }
+    .img-container img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .caption {
+      margin-top: 12px;
+      font-style: italic;
+      color: #64748b;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Project Report Diagrams: AI Surveillance & Suspicious Activity Detection</h1>
+    <p>High-resolution diagrams ready to copy-paste directly into your Project Report / Thesis (Word / PDF / PPT).</p>
+    <div class="tip-box">
+      💡 <b>Tip:</b> Right-click on any diagram below and choose <b>"Copy Image"</b>, then paste (Ctrl+V) directly into Microsoft Word!
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>1. System Architecture & Workflow Diagram</h2>
+    <p class="desc">
+      Shows the end-to-end operational pipeline: Video Ingestion &rarr; Frame Preprocessing &rarr; Deep Learning Models (YOLOv11 & MediaPipe 3D Pose) &rarr; Multi-Person Locomotion Tracking (Sitting, Standing, Walking, Running) &rarr; Threat Engine &rarr; SOC Security Operations Dashboard.
+    </p>
+    <div class="img-container">
+      <img src="system_architecture_diagram.jpg" alt="System Architecture and Workflow Diagram">
+      <div class="caption">Figure 4.1: End-to-End System Architecture and Workflow Pipeline</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. Data Flow Diagram (DFD)</h2>
+    <p class="desc">
+      Shows processes (P1 Frame Ingestion, P2 Feature Extraction, P3 Multi-Person Tracking, P4 Threat Analysis, P5 Alert Dispatcher), external entities (CCTV Camera, Security Operator), and data stores (Frame Buffer, Event Logs, PostgreSQL DB).
+    </p>
+    <div class="img-container">
+      <img src="data_flow_diagram_DFD.jpg" alt="Data Flow Diagram (DFD)">
+      <div class="caption">Figure 4.2: Data Flow Diagram (DFD) for Real-Time Video Ingestion and Suspicious Behavior Detection</div>
+    </div>
+  </div>
+
+</body>
+</html>
