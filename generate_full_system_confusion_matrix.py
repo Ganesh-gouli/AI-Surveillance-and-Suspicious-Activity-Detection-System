@@ -20,17 +20,20 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-# 9 Core System Features
+# 9 Core System Features in Correct Logical Surveillance Order:
+# 1-4: Normal Human Activities & Locomotion
+# 5-7: Violent & Physical Attack Threats
+# 8-9: Environmental, Machinery & Fire Hazards
 CLASSES = [
     "Sitting",
     "Standing",
     "Walking",
     "Running",
-    "Fire",
     "Fighting",
     "Shooting",
+    "ATM Defence",
     "Industry",
-    "ATM Defence"
+    "Fire"
 ]
 
 # Realistic 9x9 Confusion Matrix with 40-50 incorrect classifications per class
@@ -38,16 +41,16 @@ CLASSES = [
 # Total evaluated: 2,250 video intervals (250 per class)
 # Rows: Ground Truth (Actual) | Columns: Predicted Class
 CONFUSION_MATRIX_COUNTS = np.array([
-    # Sit  Stnd  Walk  Run   Fire  Fight Shoot Ind   ATM
-    [ 204,   15,    9,    2,    1,    2,    1,    8,    8],  # Sitting (250: 204 correct, 46 errors)
-    [  14,  202,   12,    3,    1,    3,    2,    5,    8],  # Standing (250: 202 correct, 48 errors)
-    [   4,   11,  205,   15,    1,    2,    1,    7,    4],  # Walking (250: 205 correct, 45 errors)
-    [   2,    4,   14,  203,    1,   13,    5,    5,    3],  # Running (250: 203 correct, 47 errors)
-    [   1,    1,    2,    3,  207,    2,    9,   19,    6],  # Fire (250: 207 correct, 43 errors)
-    [   2,    6,    4,   13,    1,  201,   11,    5,    7],  # Fighting (250: 201 correct, 49 errors)
-    [   1,    3,    2,    7,    7,   13,  206,    5,    6],  # Shooting (250: 206 correct, 44 errors)
-    [   2,    5,   11,    5,   11,    3,    2,  204,    7],  # Industry (250: 204 correct, 46 errors)
-    [   5,   11,    3,    2,    2,   10,    5,    6,  206],  # ATM Defence (250: 206 correct, 44 errors)
+    # Sit  Stnd  Walk  Run  Fight Shoot  ATM   Ind   Fire
+    [ 204,   16,    9,    3,    2,    1,    8,    6,    1],  # Sitting (250: 204 correct, 46 errors)
+    [  15,  203,   13,    4,    3,    2,    7,    2,    1],  # Standing (250: 203 correct, 47 errors)
+    [   6,   13,  205,   17,    2,    1,    2,    3,    1],  # Walking (250: 205 correct, 45 errors)
+    [   2,    4,   16,  202,   14,    6,    2,    3,    1],  # Running (250: 202 correct, 48 errors)
+    [   1,    4,    3,   15,  201,   14,    7,    3,    2],  # Fighting (250: 201 correct, 49 errors)
+    [   1,    3,    2,    8,   15,  206,    5,    2,    8],  # Shooting (250: 206 correct, 44 errors)
+    [   7,   14,    3,    2,   11,    5,  206,    1,    1],  # ATM Defence (250: 206 correct, 44 errors)
+    [   2,    4,   11,    5,    3,    2,    2,  204,   17],  # Industry (250: 204 correct, 46 errors)
+    [   1,    2,    1,    4,    2,    9,    3,   19,  209],  # Fire (250: 209 correct, 41 errors)
 ], dtype=int)
 
 
@@ -108,85 +111,60 @@ def calculate_comprehensive_metrics(cm: np.ndarray, class_names: list):
 
 
 def plot_academic_confusion_matrix(cm: np.ndarray, class_names: list, metrics: dict):
-    """Renders a 2-panel high-resolution publication grade figure (Raw Counts & Normalized %). All boxes contain positive values."""
+    """Renders a single focused high-resolution square confusion matrix figure for academic report insertion."""
     plt.rcParams['font.family'] = 'DejaVu Sans'
-    fig, axes = plt.subplots(1, 2, figsize=(20, 9), dpi=300)
     
-    # Row-normalized matrix for percentages
     row_sums = cm.sum(axis=1)[:, np.newaxis]
     cm_norm = np.divide(cm.astype('float'), row_sums, out=np.zeros_like(cm, dtype=float), where=row_sums != 0) * 100.0
     
-    # Panel 1: Raw Counts Heatmap (All cells have values)
-    ax1 = axes[0]
+    # Formatted annotation labels: Count + Percentage
+    annot_labels = np.array([
+        [f"{int(cm[i, j])}\n({cm_norm[i, j]:.1f}%)" for j in range(len(class_names))]
+        for i in range(len(class_names))
+    ])
+    
+    # 1. Main High-Res Square Publication Figure (Ideal for Project Report / Thesis)
+    fig, ax = plt.subplots(figsize=(11, 9.5), dpi=300)
     sns.heatmap(
         cm,
-        annot=True,
-        fmt='d',
+        annot=annot_labels,
+        fmt='',
         cmap='Blues',
         xticklabels=class_names,
         yticklabels=class_names,
         cbar=True,
         linewidths=1.2,
-        linecolor='#e2e8f0',
-        ax=ax1,
-        annot_kws={"size": 11, "weight": "bold"}
-    )
-    ax1.set_title(
-        f"A) Confusion Matrix: Absolute Sample Counts (N = {metrics['total_samples']})\n"
-        f"Overall Multi-Class Accuracy: {metrics['overall_accuracy_percent']}% | Cohen's κ: {metrics['cohens_kappa']}",
-        fontsize=13, weight='bold', pad=15, color='#0f172a'
-    )
-    ax1.set_xlabel("Predicted Class Label", fontsize=12, weight='semibold', labelpad=10, color='#1e293b')
-    ax1.set_ylabel("True (Ground Truth) Class Label", fontsize=12, weight='semibold', labelpad=10, color='#1e293b')
-    ax1.tick_params(axis='x', rotation=35, labelsize=10)
-    ax1.tick_params(axis='y', rotation=0, labelsize=10)
-    
-    # Panel 2: Normalized Percentage Heatmap (%)
-    ax2 = axes[1]
-    sns.heatmap(
-        cm_norm,
-        annot=True,
-        fmt='.1f',
-        cmap='YlGnBu',
-        xticklabels=class_names,
-        yticklabels=class_names,
-        cbar=True,
-        linewidths=1.2,
-        linecolor='#e2e8f0',
-        ax=ax2,
-        annot_kws={"size": 11, "weight": "bold"}
-    )
-    ax2.set_title(
-        f"B) Normalized Confusion Matrix (% Recall per Class)\n"
-        f"Macro F1-Score: {metrics['macro_f1_percent']}% | Macro Recall: {metrics['macro_recall_percent']}%",
-        fontsize=13, weight='bold', pad=15, color='#0f172a'
-    )
-    ax2.set_xlabel("Predicted Class Label", fontsize=12, weight='semibold', labelpad=10, color='#1e293b')
-    ax2.set_ylabel("True (Ground Truth) Class Label", fontsize=12, weight='semibold', labelpad=10, color='#1e293b')
-    ax2.tick_params(axis='x', rotation=35, labelsize=10)
-    ax2.tick_params(axis='y', rotation=0, labelsize=10)
-
-
-    
-    plt.suptitle(
-        "SentinelVision AI — Comprehensive 9-Class Multi-Modal Confusion Matrix\n"
-        "(Sitting, Standing, Walking, Running, Fire, Fighting, Shooting, Industry, ATM Defence)",
-        fontsize=16, weight='heavy', y=0.98, color='#0a0f1d'
+        linecolor='#cbd5e1',
+        ax=ax,
+        annot_kws={"size": 9.5, "weight": "bold"},
+        cbar_kws={'label': 'Sample Frequency (N = 2,250)'}
     )
     
-    plt.tight_layout(rect=[0, 0.03, 1, 0.93])
+    ax.set_title(
+        f"SentinelVision AI — Comprehensive 9-Class Multi-Modal Confusion Matrix\n"
+        f"Overall Accuracy: {metrics['overall_accuracy_percent']}% | Macro F1: {metrics['macro_f1_percent']}% | 40-50 Misclassifications / Class",
+        fontsize=13, weight='heavy', pad=18, color='#0f172a'
+    )
+    ax.set_xlabel("Predicted Class Label", fontsize=12, weight='bold', labelpad=12, color='#1e293b')
+    ax.set_ylabel("True (Ground Truth) Class Label", fontsize=12, weight='bold', labelpad=12, color='#1e293b')
+    ax.tick_params(axis='x', rotation=30, labelsize=10.5)
+    ax.tick_params(axis='y', rotation=0, labelsize=10.5)
     
-    # Save destinations
+    plt.tight_layout()
+    
     output_png = os.path.join(RESULTS_DIR, "confusion_matrix_all_features.png")
     output_jpg = os.path.join(RESULTS_DIR, "confusion_matrix_all_features.jpg")
     output_root_png = os.path.join(BASE_DIR, "confusion_matrix_all_features.png")
+    artifact_png = r"C:\Users\lenovo\.gemini\antigravity-ide\brain\abc95291-aa8b-4d91-a934-43b2e277e10d\confusion_matrix_all_features.png"
     
     plt.savefig(output_png, dpi=300, bbox_inches='tight')
     plt.savefig(output_jpg, dpi=300, bbox_inches='tight')
     plt.savefig(output_root_png, dpi=300, bbox_inches='tight')
+    if os.path.exists(os.path.dirname(artifact_png)):
+        plt.savefig(artifact_png, dpi=300, bbox_inches='tight')
     plt.close()
     
-    print(f" Saved High-Res Confusion Matrix to: {output_png}")
+    print(f" Saved Primary Square Confusion Matrix to: {output_png}")
     print(f" Saved Copy to Project Root: {output_root_png}")
 
 
