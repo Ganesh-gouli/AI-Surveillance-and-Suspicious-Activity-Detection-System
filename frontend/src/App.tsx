@@ -101,6 +101,7 @@ export const App: React.FC = () => {
                 <Route path="/shooting-detection" element={<ShootingDetection />} />
                 <Route path="/fighting-detection" element={<FightingDetection />} />
                 <Route path="/video-analysis" element={<VideoAnalysis />} />
+                <Route path="/fire-detection" element={<VideoAnalysis />} />
                 <Route path="/image-analysis" element={<ImageAnalysis />} />
                 <Route path="/incidents" element={<Incidents />} />
                 <Route path="/zones" element={<RestrictedZones />} />

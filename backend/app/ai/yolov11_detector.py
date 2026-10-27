@@ -157,10 +157,11 @@ class YOLOv11Detector:
             print(f"[YOLOv11 Detector] Fire detection error: {e}")
             return {"is_fire": False, "fire_confidence": 0.0, "no_fire_confidence": 100.0, "boxes": []}
 
-    def detect(self, frame: np.ndarray, conf_threshold: Optional[float] = None, imgsz: int = 384) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    def detect(self, frame: np.ndarray, conf_threshold: Optional[float] = None, imgsz: int = 384, detect_fire: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Executes unified detection of people and normal home/table items.
         Guns, knives, and weapons are strictly excluded.
+        Fire detection is only executed when detect_fire=True to prevent continuous background inference.
         Returns:
             - people: List of detected persons with [x, y, w, h], confidence, and interacting_objects
             - objects: Whitelisted normal home/table objects
@@ -257,8 +258,11 @@ class YOLOv11Detector:
                 # Perform Spatial Person-Object Association (e.g. person holding phone, laptop, or gun)
                 self._associate_person_objects(people, objects)
 
-                # Real-Time Fire & Flame Recognition
-                self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
+                # Fire & Flame Recognition: Only run when explicitly requested
+                if detect_fire:
+                    self.cached_fire_info = self._detect_fire(frame, imgsz=min(imgsz, 320))
+                else:
+                    self.cached_fire_info = {"is_fire": False, "fire_confidence": 0.0, "no_fire_confidence": 100.0, "boxes": []}
                 fire_info = self.cached_fire_info
 
                 return people, objects, fire_info

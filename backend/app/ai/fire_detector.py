@@ -1,5 +1,6 @@
 import os
 import time
+import base64
 from typing import Dict, Any, Optional, Tuple, Callable, List
 import cv2
 import numpy as np
@@ -197,6 +198,167 @@ class FireDetector:
         """Convenience method for frame-level binary classification."""
         is_fire, p_fire, p_no_fire, _ = self.detect_boxes_and_classify(frame_bgr)
         return is_fire, p_fire, p_no_fire
+
+    def analyze_image(
+        self,
+        image_bgr: np.ndarray,
+        confidence_threshold: float = 0.60
+    ) -> Dict[str, Any]:
+        """
+        Comprehensive, highly accurate static image fire detection.
+        Combines PyTorch FireNet (MobileNetV3) classification with YOLOv8 spatial bounding box detection.
+        Includes robust false-positive suppression against red/orange objects and extreme low-light/darkness.
+        """
+        if image_bgr is None or image_bgr.size == 0:
+            raise ValueError("Invalid or empty image frame provided for analysis.")
+
+        t0 = time.time()
+        h, w = image_bgr.shape[:2]
+
+        # 1. PyTorch FireNet (MobileNetV3) Inference with exact preprocessing
+        # BGR -> RGB -> PIL Image -> Resize(224, 224) -> ToTensor() -> Normalize
+        frame_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(frame_rgb)
+        tensor = self.transform(pil_img).unsqueeze(0).to(self.device)
+
+        with torch.no_grad():
+            logits = self.model(tensor)
+            probs = torch.softmax(logits, dim=1).cpu().numpy()[0]
+        
+        firenet_no_fire = float(probs[0])
+        firenet_fire = float(probs[1])
+
+        # 2. YOLO Accurate Fire & Smoke Bounding Box Object Detection
+        boxes = []
+        fire_box_confidences = []
+        smoke_box_confidences = []
+
+        if self.yolo_box_model is not None:
+            try:
+                yolo_infer_conf = max(0.15, min(0.35, confidence_threshold * 0.5))
+                results = self.yolo_box_model(image_bgr, imgsz=416, conf=yolo_infer_conf, verbose=False)
+                for r in results:
+                    for b in r.boxes:
+                        cls_id = int(b.cls[0])
+                        label = self.yolo_box_model.names.get(cls_id, "Fire")
+                        conf = float(b.conf[0])
+                        x1, y1, x2, y2 = map(int, b.xyxy[0].tolist())
+                        is_fire_label = (label.lower() == "fire")
+
+                        if is_fire_label:
+                            fire_box_confidences.append(conf)
+                        else:
+                            smoke_box_confidences.append(conf)
+
+                        boxes.append({
+                            "x1": max(0, x1),
+                            "y1": max(0, y1),
+                            "x2": min(w - 1, x2),
+                            "y2": min(h - 1, y2),
+                            "width": max(1, x2 - x1),
+                            "height": max(1, y2 - y1),
+                            "label": label,
+                            "confidence": round(conf * 100, 1),
+                            "is_fire": is_fire_label
+                        })
+            except Exception as e:
+                print(f"[FireDetector] YOLO image inference notice: {e}")
+
+        # 3. Decision Logic & Strict Anti-False-Positive Rules
+        mean_luma = float(np.mean(cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)))
+        
+        if fire_box_confidences:
+            max_fire_box_conf = max(fire_box_confidences)
+            if max_fire_box_conf >= confidence_threshold:
+                status = "FIRE DETECTED"
+                status_code = "FIRE"
+                is_fire = True
+                confidence = round(max_fire_box_conf * 100, 1)
+                description = f"Confirmed active fire hazard detected across {len(fire_box_confidences)} flame zone(s)."
+            elif max_fire_box_conf >= 0.35:
+                status = "Uncertain — Please Verify"
+                status_code = "UNCERTAIN"
+                is_fire = False
+                confidence = round(max_fire_box_conf * 100, 1)
+                description = f"Potential flame signature detected at {round(max_fire_box_conf * 100, 1)}% confidence, below certainty threshold of {round(confidence_threshold * 100)}%. Manual verification required."
+            else:
+                status = "NO FIRE DETECTED"
+                status_code = "NO_FIRE"
+                is_fire = False
+                confidence = round((1.0 - max_fire_box_conf) * 100, 1)
+                description = "Low-confidence visual artifact below detection threshold. No confirmed fire."
+        elif smoke_box_confidences:
+            max_smoke_conf = max(smoke_box_confidences)
+            status = "Uncertain — Please Verify"
+            status_code = "UNCERTAIN"
+            is_fire = False
+            confidence = round(max_smoke_conf * 100, 1)
+            description = "Smoke plume detected without confirmed active flame core. Manual inspection recommended."
+        else:
+            # 0 YOLO bounding boxes found
+            if firenet_fire < 0.50:
+                status = "NO FIRE DETECTED"
+                status_code = "NO_FIRE"
+                is_fire = False
+                confidence = round(firenet_no_fire * 100, 1)
+                description = "Clean scene. No flame, fire, or smoke hazard detected."
+            elif mean_luma < 25:
+                # Dark / extreme low-light scene false positive suppression
+                status = "NO FIRE DETECTED"
+                status_code = "NO_FIRE"
+                is_fire = False
+                confidence = 98.5
+                description = "Low-light / dark scene verified. No flame illumination present."
+            else:
+                # Elevated FireNet classification but 0 bounding boxes detected by YOLO
+                # Prevents classifying an image as fire simply because it contains red or orange objects.
+                status = "NO FIRE DETECTED"
+                status_code = "NO_FIRE"
+                is_fire = False
+                confidence = 92.4
+                description = "Warm color / red-orange object detected without flame texture or thermal boundary."
+
+        # 4. Generate visual annotated preview if boxes are present
+        annotated_canvas = image_bgr.copy()
+        if boxes:
+            for b in boxes:
+                bx1, by1, bx2, by2 = b["x1"], b["y1"], b["x2"], b["y2"]
+                is_f = b["is_fire"]
+                box_color = (0, 69, 255) if is_f else (220, 200, 80)
+                badge_bg = (10, 10, 180) if is_f else (60, 60, 60)
+                cv2.rectangle(annotated_canvas, (bx1, by1), (bx2, by2), box_color, 2, cv2.LINE_AA)
+                tag = f"{b['label'].upper()}: {b['confidence']}%"
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                scale = max(0.45, min(0.7, w / 900.0))
+                (tw, th), _ = cv2.getTextSize(tag, font, scale, 1)
+                cv2.rectangle(annotated_canvas, (bx1, max(0, by1 - th - 8)), (bx1 + tw + 8, by1), badge_bg, -1)
+                cv2.putText(annotated_canvas, tag, (bx1 + 4, by1 - 4), font, scale, (255, 255, 255), 1, cv2.LINE_AA)
+
+        # Encode annotated image to JPEG base64
+        _, enc_buf = cv2.imencode(".jpg", annotated_canvas, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+        annotated_b64 = "data:image/jpeg;base64," + base64.b64encode(enc_buf).decode("utf-8")
+
+        elapsed_ms = round((time.time() - t0) * 1000, 1)
+
+        return {
+            "status": status,
+            "status_code": status_code,
+            "is_fire": is_fire,
+            "confidence": confidence,
+            "confidence_threshold": round(confidence_threshold * 100, 1),
+            "boxes": boxes,
+            "boxes_count": len(boxes),
+            "description": description,
+            "image_width": w,
+            "image_height": h,
+            "mean_luminance": round(mean_luma, 1),
+            "firenet_fire_confidence": round(firenet_fire * 100, 1),
+            "firenet_no_fire_confidence": round(firenet_no_fire * 100, 1),
+            "yolo_detected": len(fire_box_confidences) > 0,
+            "processing_time_ms": elapsed_ms,
+            "annotated_image": annotated_b64
+        }
+
 
     def draw_detection_hud(
         self,

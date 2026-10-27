@@ -23,7 +23,7 @@ async def analyze_image(file: UploadFile = File(...)):
         bgr_frame = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
 
         h, w = bgr_frame.shape[:2]
-        result = global_pipeline.process_frame(bgr_frame, camera_id="IMG-UPLOAD", camera_location="Forensic Image Upload")
+        result = global_pipeline.process_frame(bgr_frame, camera_id="IMG-UPLOAD", camera_location="Forensic Image Upload", detect_fire=True)
 
         return {
             "filename": file.filename,
@@ -77,6 +77,8 @@ async def process_raw_frame(payload: dict):
         except Exception:
             frame = None
 
+    detect_fire = bool(payload.get("detect_fire", False))
+
     result = global_pipeline.process_frame(
         frame,
         camera_id=camera_id,
@@ -84,7 +86,8 @@ async def process_raw_frame(payload: dict):
         night_vision_gain=night_vision_gain,
         ir_illuminator=ir_illuminator,
         conf_threshold=confidence_threshold,
-        accuracy_mode=accuracy_mode
+        accuracy_mode=accuracy_mode,
+        detect_fire=detect_fire
     )
     return result
 

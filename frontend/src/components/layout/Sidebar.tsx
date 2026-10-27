@@ -30,7 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeThreatCount = 4 }) => {
     { to: '/atm-detection', label: 'ATM Defense & Breaking AI', icon: ShieldAlert, badge: '🏧 98%' },
     { to: '/shooting-detection', label: 'Shooting & Weapon AI', icon: Crosshair, badge: '🎯 NEW' },
     { to: '/fighting-detection', label: 'Fighting Detection AI', icon: Swords, badge: '🥊' },
-    { to: '/video-analysis', label: 'Fire Detection AI', icon: Flame, badge: '🔥' },
+    { to: '/fire-detection', label: 'Fire Detection AI', icon: Flame, badge: '🔥' },
     { to: '/webcam', label: 'Live Webcam', icon: Webcam, badge: 'AI' },
     { to: '/monitoring', label: 'Live Monitoring', icon: Tv, badge: 'LIVE' },
     { to: '/cameras', label: 'CCTV / Cameras', icon: Camera },

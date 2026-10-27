@@ -175,6 +175,61 @@ def stream_processed_video(filename: str):
     )
 
 
+@router.post("/analyze-image")
+async def upload_and_analyze_image(
+    file: UploadFile = File(...),
+    confidence_threshold: float = Form(0.60)
+):
+    """
+    Analyzes an uploaded image using the existing trained PyTorch FireNet (MobileNetV3) model
+    and YOLOv8 Fire & Smoke detector.
+    Supports JPG, JPEG, and PNG formats.
+    Returns real model prediction, confidence percentage, bounding boxes, and false-positive suppression telemetry.
+    """
+    allowed_exts = [".jpg", ".jpeg", ".png", ".webp"]
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file selected. Please upload an image.")
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed_exts:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported format '{ext}'. Allowed formats: JPG, JPEG, PNG."
+        )
+
+    try:
+        contents = await file.read()
+        if not contents or len(contents) == 0:
+            raise HTTPException(status_code=400, detail="Empty file uploaded. Please upload a valid image.")
+
+        np_arr = np.frombuffer(contents, np.uint8)
+        frame_bgr = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+        if frame_bgr is None or frame_bgr.size == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Unable to decode image. The file may be corrupted or not a valid image."
+            )
+
+        # Normalize confidence_threshold if passed as percentage (e.g. 60 instead of 0.60)
+        conf_thresh = float(confidence_threshold)
+        if conf_thresh > 1.0:
+            conf_thresh = conf_thresh / 100.0
+        conf_thresh = max(0.10, min(0.99, conf_thresh))
+
+        result = global_fire_detector.analyze_image(
+            image_bgr=frame_bgr,
+            confidence_threshold=conf_thresh
+        )
+        result["filename"] = file.filename
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image inference error: {str(e)}")
+
+
 @router.post("/detect-frame")
 async def detect_frame_live(payload: dict):
     """

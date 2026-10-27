@@ -29,7 +29,7 @@ def run_tests():
     print(f"\n[TEST 1] Processing Fire Frame (300) from {os.path.basename(fire_video_path)}...")
     all_alerts = []
     for i in range(4):
-        res1 = pipeline.process_frame(fire_frame, camera_id="TEST-CAM-FIRE")
+        res1 = pipeline.process_frame(fire_frame, camera_id="TEST-CAM-FIRE", detect_fire=True)
         if res1["active_alerts"]:
             all_alerts.extend(res1["active_alerts"])
 
@@ -58,7 +58,7 @@ def run_tests():
 
     print(f"\n[TEST 2] Processing Normal CCTV Frame from {os.path.basename(normal_video_path)}...")
     pipeline_normal = SentinelInferencePipeline()
-    res2 = pipeline_normal.process_frame(normal_frame, camera_id="TEST-CAM-NORMAL")
+    res2 = pipeline_normal.process_frame(normal_frame, camera_id="TEST-CAM-NORMAL", detect_fire=True)
 
     fire_info_norm = res2["fire"]
     print("Normal Fire Output:", fire_info_norm)
@@ -81,7 +81,8 @@ def run_tests():
         r = client.post("/api/detection/frame", json={
             "image_base64": b64,
             "camera_id": "TEST-WEBCAM-LIVE",
-            "accuracy_mode": "high"
+            "accuracy_mode": "high",
+            "detect_fire": True
         })
     assert r.status_code == 200, f"API returned status {r.status_code}"
     api_res = r.json()

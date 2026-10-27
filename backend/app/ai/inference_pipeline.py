@@ -39,7 +39,8 @@ class SentinelInferencePipeline:
         night_vision_gain: float = 1.0,
         ir_illuminator: bool = False,
         conf_threshold: Optional[float] = None,
-        accuracy_mode: str = "high"
+        accuracy_mode: str = "high",
+        detect_fire: bool = False
     ) -> Dict[str, Any]:
         """
         Executes real AI inference pipeline on an incoming video / webcam / image frame.
@@ -105,38 +106,40 @@ class SentinelInferencePipeline:
             person_detections, scene_objects, fire_info = self.detector.detect(
                 ai_detection_frame,
                 conf_threshold=conf_threshold,
-                imgsz=infer_imgsz
+                imgsz=infer_imgsz,
+                detect_fire=detect_fire
             )
 
-            # Camera continuous fire alert tracking
-            if not hasattr(self, 'camera_fire_tracker'):
-                self.camera_fire_tracker = {}
-            consec = self.camera_fire_tracker.get(camera_id, 0)
-            if fire_info.get("is_fire", False) and fire_info.get("fire_confidence", 0) >= 30.0:
-                consec += 1
-            else:
-                consec = 0
-            self.camera_fire_tracker[camera_id] = consec
-            fire_info["continuous_fire_alert"] = (consec >= 3)
-            fire_info["consecutive_fire_frames"] = consec
+            # Camera fire alert tracking - Only executed when fire detection is explicitly requested
+            if detect_fire:
+                if not hasattr(self, 'camera_fire_tracker'):
+                    self.camera_fire_tracker = {}
+                consec = self.camera_fire_tracker.get(camera_id, 0)
+                if fire_info.get("is_fire", False) and fire_info.get("fire_confidence", 0) >= 30.0:
+                    consec += 1
+                else:
+                    consec = 0
+                self.camera_fire_tracker[camera_id] = consec
+                fire_info["continuous_fire_alert"] = (consec >= 3)
+                fire_info["consecutive_fire_frames"] = consec
 
-            # Dispatch Critical Fire Incident Alert to AlertEngine
-            if fire_info.get("continuous_fire_alert", False):
-                fire_threat = {
-                    "threat_type": "FIRE_HAZARD",
-                    "severity": "CRITICAL",
-                    "activity": "FIRE HAZARD",
-                    "confidence": float(fire_info.get("fire_confidence", 85.0)),
-                    "details": f"Critical fire/flame hazard detected! Active flame verified across {consec} frames."
-                }
-                fire_alert = self.alert_engine.process_threat(
-                    camera_id=camera_id,
-                    camera_location=camera_location,
-                    threat_info=fire_threat,
-                    track_id=9999
-                )
-                if fire_alert:
-                    alerts_generated.append(fire_alert)
+                # Dispatch Critical Fire Incident Alert to AlertEngine
+                if fire_info.get("continuous_fire_alert", False):
+                    fire_threat = {
+                        "threat_type": "FIRE_HAZARD",
+                        "severity": "CRITICAL",
+                        "activity": "FIRE HAZARD",
+                        "confidence": float(fire_info.get("fire_confidence", 85.0)),
+                        "details": f"Critical fire/flame hazard detected! Active flame verified across {consec} frames."
+                    }
+                    fire_alert = self.alert_engine.process_threat(
+                        camera_id=camera_id,
+                        camera_location=camera_location,
+                        threat_info=fire_threat,
+                        track_id=9999
+                    )
+                    if fire_alert:
+                        alerts_generated.append(fire_alert)
             
             # Format scene objects for API response
             for obj in scene_objects:

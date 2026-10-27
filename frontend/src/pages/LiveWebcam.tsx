@@ -123,8 +123,10 @@ export const LiveWebcam: React.FC = () => {
     } catch (e) {}
   };
 
-  // PyTorch Fire Detection Live State (Section 11)
-  const [fireMonitorActive, setFireMonitorActive] = useState<boolean>(true);
+  // PyTorch Fire Detection Live State - Disabled by default to prevent continuous webcam fire detection
+  const [fireMonitorActive, setFireMonitorActive] = useState<boolean>(false);
+  const fireMonitorActiveRef = useRef(fireMonitorActive);
+  fireMonitorActiveRef.current = fireMonitorActive;
   const [fireData, setFireData] = useState<{
     is_fire: boolean;
     fire_confidence: number;
@@ -261,7 +263,8 @@ export const LiveWebcam: React.FC = () => {
               night_vision_gain: sensorGainRef.current,
               ir_illuminator: irIlluminatorRef.current,
               accuracy_mode: mode,
-              confidence_threshold: confidenceThresholdRef.current / 100.0
+              confidence_threshold: confidenceThresholdRef.current / 100.0,
+              detect_fire: fireMonitorActiveRef.current
             })
           });
 
@@ -320,12 +323,21 @@ export const LiveWebcam: React.FC = () => {
               }
             }
 
-            // Unified Real-Time Fire Detection (Directly in single-pass API with zero lag)
-            if (data.fire) {
+            // Fire Detection - Only active if explicitly toggled on by user
+            if (fireMonitorActiveRef.current && data.fire) {
               setFireData(data.fire);
-              if (data.fire.continuous_fire_alert) {
+              if (data.fire.continuous_fire_alert && soundEnabled) {
                 audioService.playCriticalAlarm();
               }
+            } else {
+              setFireData({
+                is_fire: false,
+                fire_confidence: 0,
+                no_fire_confidence: 100,
+                continuous_fire_alert: false,
+                consecutive_fire_frames: 0,
+                boxes: []
+              });
             }
 
             // Real-Time Firearm / Gun Hazard Siren Trigger
