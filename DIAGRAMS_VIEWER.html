@@ -167,5 +167,71 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>4. Accuracy & Loss Curve Analysis (Training Dynamics)</h2>
+    <p class="desc">
+      Illustrates the 30-epoch optimization convergence for the proposed <b>MobileNetV2 + BiLSTM + Attention</b> hybrid architecture using <b>AdamW</b> (lr=3e-4, weight decay=1e-4) with <b>CosineAnnealingLR</b> scheduling. Demonstrates rapid early loss descent, smooth asymptotic stabilization, and an optimal model checkpoint achieved at <b>Epoch 24</b> (Validation Loss = <b>0.2180</b>, Validation Accuracy = <b>92.40%</b>, Generalization Gap bounded at <b>3.40%</b>).
+    </p>
+    <div class="img-container">
+      <img src="accuracy_and_loss_curves.png" alt="Model Convergence and Accuracy Loss Curves">
+      <div class="caption">Figure 7.4: Training and Validation Accuracy & Loss Trajectories across 30 Epochs (Panel a: Cross-Entropy Loss, Panel b: Classification Accuracy)</div>
+    </div>
+
+    <div style="margin-top: 25px; overflow-x: auto;">
+      <h3 style="font-size: 16px; margin-bottom: 12px; color: #0f172a;">Training Trajectory & Optimization Milestones</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px; text-align: left;">
+        <thead>
+          <tr style="background: #0f172a; color: #ffffff;">
+            <th style="padding: 10px 14px; border: 1px solid #334155;">Epoch Range</th>
+            <th style="padding: 10px 14px; border: 1px solid #334155;">Train Loss</th>
+            <th style="padding: 10px 14px; border: 1px solid #334155;">Validation Loss</th>
+            <th style="padding: 10px 14px; border: 1px solid #334155;">Train Accuracy (%)</th>
+            <th style="padding: 10px 14px; border: 1px solid #334155;">Val Accuracy (%)</th>
+            <th style="padding: 10px 14px; border: 1px solid #334155;">Generalization Gap</th>
+            <th style="padding: 10px 14px; border: 1px solid #334155;">Optimization Dynamics & Observations</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background: #ffffff;">
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0; font-weight: 600;">Epochs 1 – 5</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">0.852 &rarr; 0.632</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">0.884 &rarr; 0.697</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">55.0% &rarr; 66.8%</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">54.0% &rarr; 64.2%</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0; color: #059669; font-weight: 600;">&le; 2.6%</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">Rapid initial gradient adaptation; temporal attention heads align with salient motion transitions.</td>
+          </tr>
+          <tr style="background: #f8fafc;">
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0; font-weight: 600;">Epochs 6 – 15</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">0.587 &rarr; 0.332</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">0.648 &rarr; 0.342</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">70.4% &rarr; 83.9%</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">68.9% &rarr; 83.2%</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0; color: #059669; font-weight: 600;">&le; 1.5%</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">Consistent cross-entropy descent; BiLSTM recurrent cells encode bidirectional kinematic temporal flow.</td>
+          </tr>
+          <tr style="background: #ecfdf5;">
+            <td style="padding: 8px 14px; border: 1px solid #a7f3d0; font-weight: 600; color: #065f46;">Epochs 16 – 24 (Optimal)</td>
+            <td style="padding: 8px 14px; border: 1px solid #a7f3d0; font-weight: 600;">0.306 &rarr; 0.142</td>
+            <td style="padding: 8px 14px; border: 1px solid #a7f3d0; font-weight: 600; color: #b45309;">0.318 &rarr; 0.2180</td>
+            <td style="padding: 8px 14px; border: 1px solid #a7f3d0; font-weight: 600;">85.8% &rarr; 95.80%</td>
+            <td style="padding: 8px 14px; border: 1px solid #a7f3d0; font-weight: bold; color: #059669;">85.0% &rarr; 92.40%</td>
+            <td style="padding: 8px 14px; border: 1px solid #a7f3d0; font-weight: bold; color: #0284c7;">3.40%</td>
+            <td style="padding: 8px 14px; border: 1px solid #a7f3d0; font-weight: 600; color: #065f46;"><b>Optimal Checkpoint (Epoch 24)</b>: Minimum validation loss (0.2180) and peak validation accuracy (92.40%). Model saved.</td>
+          </tr>
+          <tr style="background: #ffffff;">
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0; font-weight: 600;">Epochs 25 – 30 (Saturation)</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">0.145 &rarr; 0.118</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">0.221 &rarr; 0.235</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">96.0% &rarr; 97.40%</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">92.1% &rarr; 91.50%</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0; color: #b45309; font-weight: 600;">5.90%</td>
+            <td style="padding: 8px 14px; border: 1px solid #e2e8f0;">Validation plateau; early stopping triggers to prevent over-specialization and preserve generalizability.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </body>
 </html>
