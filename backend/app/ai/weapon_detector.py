@@ -10,26 +10,26 @@ try:
 except ImportError:
     HAS_ULTRALYTICS = False
 
+# Strict firearm target classes (excludes noisy knives, swords, bazookas, grenade launchers)
+TARGET_FIREARMS = {
+    "handgun", "pistol", "revolver", "smg", "automatic rifle", "rifle", "shotgun"
+}
+
 
 class WeaponDetector:
     """
-    High-Performance Neural Weapon and Firearm Detector for SentinelVision AI.
-    Combines fine-tuned YOLO weapon models (models/best_weapon_detector.pt and models/best_shooting_weapon_detector.pt)
-    supporting all major firearm and tactical hazard classes:
-    - Handgun (Pistol / Revolver / Semi-Automatic)
-    - Automatic Rifle (Assault Rifle)
-    - Shotgun
-    - SMG (Submachine Gun)
-    - Sniper Rifle
-    - Knife & Bladed Hazards
-    - Sword
-    - Heavy Ordnance (Bazooka, Grenade Launcher)
+    High-Precision Neural Handgun & Firearm Detector for SentinelVision AI.
+    Optimized for live webcam feeds, forensic image analysis, and tactical alert systems.
 
     Features:
-    1. Dual-model ensemble for ultra-high recall across close-up handgun images, phone screens, and CCTV distance.
-    2. Class-Agnostic Non-Maximum Suppression (NMS) to eliminate duplicate or multi-class confusion (one clean bounding box).
-    3. Temporal Exponential Moving Average (EMA) Coordinate Smoothing across frames for zero-lag, jitter-free visual tracking.
-    4. Standalone & Handheld Recognition: Accurately detects guns whether shown directly, on a smartphone screen, or wielded by a person.
+    1. Targeted Firearm Classification: Strictly focuses on Handguns, Pistols, Revolvers, and Firearms.
+       Eliminates false alarms from ambient knives, swords, or full-frame bazooka hallucinations.
+    2. Single Clean Bounding Box: Enforces single-winner Non-Maximum Suppression (NMS) so the user
+       never sees duplicate, jittering, or multiple phantom gun boxes.
+    3. Temporal EMA Coordinate Smoothing: Smoothly interpolates coordinates across frames (alpha=0.40)
+       for rock-solid, fluid tracking without latency or jumping.
+    4. Adaptive Geometry Verification: Rejects whole-screen false positives while perfectly recognizing
+       both direct handgun images and handheld guns / phones held in front of the camera.
     """
 
     def __init__(self):
@@ -72,22 +72,22 @@ class WeaponDetector:
     def _apply_nms_and_smoothing(
         self,
         candidate_boxes: List[Dict[str, Any]],
-        iou_thresh: float = 0.35,
-        alpha: float = 0.45
+        iou_thresh: float = 0.25,
+        alpha: float = 0.40
     ) -> List[Dict[str, Any]]:
         """
-        1. Class-Agnostic Non-Maximum Suppression (NMS) to eliminate duplicate/conflicting weapon boxes.
-        2. Temporal EMA Coordinate Smoothing for fluid, jitter-free visual tracking.
+        1. Class-Agnostic Non-Maximum Suppression (NMS) to retain only the single best gun box.
+        2. Temporal EMA Coordinate Smoothing for zero-lag, jitter-free visual tracking.
         """
         if not candidate_boxes:
             self.no_weapon_counter += 1
-            if self.no_weapon_counter >= 3:
+            if self.no_weapon_counter >= 2:
                 self.smoothed_weapon_boxes = []
             return []
 
         self.no_weapon_counter = 0
 
-        # 1. Non-Maximum Suppression (NMS) across all candidate boxes
+        # Sort by confidence descending
         sorted_boxes = sorted(candidate_boxes, key=lambda b: b.get("confidence", 0.0), reverse=True)
         kept_boxes: List[Dict[str, Any]] = []
 
@@ -114,50 +114,49 @@ class WeaponDetector:
 
             sorted_boxes = remaining
 
-        # 2. Temporal EMA Smoothing
-        final_boxes: List[Dict[str, Any]] = []
-        for box in kept_boxes:
-            matched_prev = None
-            for prev in self.smoothed_weapon_boxes:
-                cx1, cy1 = (box["x1"] + box["x2"]) / 2.0, (box["y1"] + box["y2"]) / 2.0
-                cx2, cy2 = (prev["x1"] + prev["x2"]) / 2.0, (prev["y1"] + prev["y2"]) / 2.0
-                dist = ((cx1 - cx2) ** 2 + (cy1 - cy2) ** 2) ** 0.5
-                if dist < 85:
-                    matched_prev = prev
-                    break
+        # Strict Single-Gun Consolidation: Only keep the highest-confidence winning box
+        winner_box = kept_boxes[0]
 
-            if matched_prev:
-                sx1 = int(matched_prev["x1"] * (1 - alpha) + box["x1"] * alpha)
-                sy1 = int(matched_prev["y1"] * (1 - alpha) + box["y1"] * alpha)
-                sx2 = int(matched_prev["x2"] * (1 - alpha) + box["x2"] * alpha)
-                sy2 = int(matched_prev["y2"] * (1 - alpha) + box["y2"] * alpha)
-                smoothed_box = {
+        # Temporal EMA Smoothing across frames
+        if self.smoothed_weapon_boxes:
+            prev = self.smoothed_weapon_boxes[0]
+            cx1 = (winner_box["x1"] + winner_box["x2"]) / 2.0
+            cy1 = (winner_box["y1"] + winner_box["y2"]) / 2.0
+            cx2 = (prev["x1"] + prev["x2"]) / 2.0
+            cy2 = (prev["y1"] + prev["y2"]) / 2.0
+            dist = ((cx1 - cx2) ** 2 + (cy1 - cy2) ** 2) ** 0.5
+
+            if dist < 120:
+                sx1 = int(prev["x1"] * (1 - alpha) + winner_box["x1"] * alpha)
+                sy1 = int(prev["y1"] * (1 - alpha) + winner_box["y1"] * alpha)
+                sx2 = int(prev["x2"] * (1 - alpha) + winner_box["x2"] * alpha)
+                sy2 = int(prev["y2"] * (1 - alpha) + winner_box["y2"] * alpha)
+                smoothed = {
                     "x1": sx1,
                     "y1": sy1,
                     "x2": sx2,
                     "y2": sy2,
                     "width": max(1, sx2 - sx1),
                     "height": max(1, sy2 - sy1),
-                    "label": box["label"],
-                    "confidence": box["confidence"],
+                    "label": winner_box["label"],
+                    "confidence": winner_box["confidence"],
                     "category": "weapon",
                     "is_weapon": True
                 }
-                final_boxes.append(smoothed_box)
-            else:
-                final_boxes.append(box)
+                self.smoothed_weapon_boxes = [smoothed]
+                return [smoothed]
 
-        self.smoothed_weapon_boxes = final_boxes
-        return final_boxes
+        self.smoothed_weapon_boxes = [winner_box]
+        return [winner_box]
 
     def detect_weapons(
         self,
         frame_bgr: np.ndarray,
-        conf_thresh: float = 0.18,
-        imgsz: int = 512
+        conf_thresh: float = 0.28,
+        imgsz: int = 448
     ) -> Tuple[bool, float, str, List[Dict[str, Any]]]:
         """
-        Executes real-time firearm and weapon detection with single-box consolidation and EMA smoothing.
+        Executes real-time accurate handgun and firearm detection with zero multi-box confusion.
         Returns:
             (is_weapon, top_confidence, top_weapon_type, formatted_objects)
         """
@@ -166,39 +165,21 @@ class WeaponDetector:
 
         self.frame_counter += 1
         h, w = frame_bgr.shape[:2]
+        total_area = float(w * h)
         candidate_boxes = []
 
-        models_to_run = []
+        # 1. Primary Model (best_weapon_detector.pt: high accuracy on closeups, phone screens, standalone guns)
         if self.primary_model is not None:
-            models_to_run.append((self.primary_model, self.primary_names))
-        if self.secondary_model is not None:
-            models_to_run.append((self.secondary_model, self.secondary_names))
-
-        try:
-            for model, names_map in models_to_run:
-                results = model(frame_bgr, imgsz=imgsz, conf=conf_thresh, verbose=False)
-                for r in results:
+            try:
+                results1 = self.primary_model(frame_bgr, imgsz=imgsz, conf=conf_thresh, verbose=False)
+                for r in results1:
                     for b in r.boxes:
                         cls_id = int(b.cls[0].cpu())
-                        raw_name = names_map.get(cls_id, str(cls_id))
+                        raw_name = self.primary_names.get(cls_id, str(cls_id)).lower()
                         conf = float(b.conf[0].cpu())
 
-                        # Standardize display labels
-                        low_name = raw_name.lower()
-                        if "handgun" in low_name or "pistol" in low_name or "revolver" in low_name:
-                            display_label = "Handgun"
-                        elif "rifle" in low_name:
-                            display_label = "Assault Rifle"
-                        elif "shotgun" in low_name:
-                            display_label = "Shotgun"
-                        elif "smg" in low_name:
-                            display_label = "SMG"
-                        elif "knife" in low_name:
-                            display_label = "Knife"
-                        elif "sword" in low_name:
-                            display_label = "Sword"
-                        else:
-                            display_label = raw_name
+                        if raw_name not in TARGET_FIREARMS:
+                            continue
 
                         x1, y1, x2, y2 = map(int, b.xyxy[0].cpu().numpy().tolist())
                         bx1 = max(0, x1)
@@ -207,9 +188,15 @@ class WeaponDetector:
                         by2 = min(h - 1, y2)
                         bw = max(1, bx2 - bx1)
                         bh = max(1, by2 - by1)
+                        area_ratio = (bw * bh) / total_area
 
-                        if bw < 12 or bh < 12:
+                        # Reject ambient full-frame hallucinations (Automatic Rifle, Bazooka filling whole screen)
+                        if area_ratio > 0.82 and raw_name in ("automatic rifle", "bazooka", "grenade launcher", "rifle"):
                             continue
+                        if bw < 16 or bh < 16:
+                            continue
+
+                        display_label = "Handgun" if raw_name in ("handgun", "pistol", "revolver", "smg") else "Firearm"
 
                         candidate_boxes.append({
                             "x1": bx1,
@@ -223,33 +210,68 @@ class WeaponDetector:
                             "category": "weapon",
                             "is_weapon": True
                         })
+            except Exception as e:
+                print(f"[WeaponDetector] Primary model error: {e}")
 
-        except Exception as e:
-            print(f"[WeaponDetector] Inference error: {e}")
+        # 2. Secondary Model (best_shooting_weapon_detector.pt: surveillance & distance firearm detection)
+        if self.secondary_model is not None:
+            try:
+                results2 = self.secondary_model(frame_bgr, imgsz=384, conf=conf_thresh, verbose=False)
+                for r in results2:
+                    for b in r.boxes:
+                        cls_id = int(b.cls[0].cpu())
+                        raw_name = self.secondary_names.get(cls_id, str(cls_id)).lower()
+                        conf = float(b.conf[0].cpu())
+
+                        if raw_name not in TARGET_FIREARMS:
+                            continue
+
+                        x1, y1, x2, y2 = map(int, b.xyxy[0].cpu().numpy().tolist())
+                        bx1 = max(0, x1)
+                        by1 = max(0, y1)
+                        bx2 = min(w - 1, x2)
+                        by2 = min(h - 1, y2)
+                        bw = max(1, bx2 - bx1)
+                        bh = max(1, by2 - by1)
+                        area_ratio = (bw * bh) / total_area
+
+                        if area_ratio > 0.80 or bw < 16 or bh < 16:
+                            continue
+
+                        display_label = "Handgun" if raw_name in ("handgun", "pistol", "revolver", "smg") else "Firearm"
+
+                        candidate_boxes.append({
+                            "x1": bx1,
+                            "y1": by1,
+                            "x2": bx2,
+                            "y2": by2,
+                            "width": bw,
+                            "height": bh,
+                            "label": display_label,
+                            "confidence": round(conf, 3),
+                            "category": "weapon",
+                            "is_weapon": True
+                        })
+            except Exception as e:
+                print(f"[WeaponDetector] Secondary model error: {e}")
+
+        # Consolidate candidate boxes to exactly 1 smoothed winning box
+        consolidated = self._apply_nms_and_smoothing(candidate_boxes, iou_thresh=0.25, alpha=0.40)
+
+        if not consolidated:
             return False, 0.0, "", []
 
-        # Consolidate duplicate boxes across both models and smooth coordinates
-        consolidated_boxes = self._apply_nms_and_smoothing(candidate_boxes, iou_thresh=0.35, alpha=0.45)
+        winner = consolidated[0]
+        top_conf = round(float(winner["confidence"]) * 100.0, 1)
+        top_type = winner["label"]
 
-        if not consolidated_boxes:
-            return False, 0.0, "", []
-
-        # Sort by confidence descending
-        consolidated_boxes.sort(key=lambda b: b["confidence"], reverse=True)
-        top_box = consolidated_boxes[0]
-        top_conf = round(float(top_box["confidence"]) * 100.0, 1)
-        top_type = top_box["label"]
-
-        # Format as standard scene objects: [x, y, w, h] bbox
-        formatted_objects = []
-        for b in consolidated_boxes:
-            formatted_objects.append({
-                "label": b["label"],
-                "category": "weapon",
-                "confidence": b["confidence"],
-                "bbox": [b["x1"], b["y1"], b["width"], b["height"]],
-                "is_weapon": True
-            })
+        formatted_objects = [{
+            "label": winner["label"],
+            "category": "weapon",
+            "confidence": winner["confidence"],
+            "bbox": [winner["x1"], winner["y1"], winner["width"], winner["height"]],
+            "is_weapon": True
+        }]
 
         return True, top_conf, top_type, formatted_objects
 

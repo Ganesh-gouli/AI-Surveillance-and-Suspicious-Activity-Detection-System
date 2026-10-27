@@ -201,11 +201,11 @@ class YOLOv11Detector:
                                     "bbox": [bx, by, bw, bh]
                                 })
 
-                # Weapon & Firearm Recognition: Dual-model ensemble + Class-Agnostic NMS + EMA Smoothing
+                # Weapon & Firearm Recognition: Targeted Handgun & Firearm Detector with Single-Box Winner NMS
                 if self.weapon_detector is not None:
                     try:
                         if self.frame_counter % 2 == 0 or self.cached_weapon_info.get("is_weapon", False) or self.frame_counter <= 2:
-                            is_w, w_conf, w_type, w_objs = self.weapon_detector.detect_weapons(frame, conf_thresh=0.18, imgsz=512)
+                            is_w, w_conf, w_type, w_objs = self.weapon_detector.detect_weapons(frame, conf_thresh=0.28, imgsz=448)
                             self.cached_weapon_info = {
                                 "is_weapon": is_w,
                                 "confidence": w_conf,
@@ -253,7 +253,7 @@ class YOLOv11Detector:
         if self.weapon_detector is not None:
             try:
                 if self.frame_counter % 2 == 0 or self.cached_weapon_info.get("is_weapon", False) or self.frame_counter <= 2:
-                    is_w, w_conf, w_type, w_objs = self.weapon_detector.detect_weapons(frame, conf_thresh=0.18, imgsz=512)
+                    is_w, w_conf, w_type, w_objs = self.weapon_detector.detect_weapons(frame, conf_thresh=0.28, imgsz=448)
                     self.cached_weapon_info = {
                         "is_weapon": is_w,
                         "confidence": w_conf,
